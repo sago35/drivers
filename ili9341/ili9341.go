@@ -151,6 +151,19 @@ func (d *Device) DrawRGBBitmap(x, y int16, data []uint16, w, h int16) error {
 	return nil
 }
 
+func (d *Device) DrawRGBBitmapDMA(x, y int16, data []uint16, w, h int16) error {
+	k, i := d.Size()
+	if x < 0 || y < 0 || w <= 0 || h <= 0 ||
+		x >= k || (x+w) > k || y >= i || (y+h) > i {
+		return errors.New("rectangle coordinates outside display area")
+	}
+	d.setWindow(x, y, w, h)
+	d.startWrite()
+	d.driver.write16sl(data)
+	d.endWrite()
+	return nil
+}
+
 // FillRectangle fills a rectangle at a given coordinates with a color
 func (d *Device) FillRectangle(x, y, width, height int16, c color.RGBA) error {
 	k, i := d.Size()
