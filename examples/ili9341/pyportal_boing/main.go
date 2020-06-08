@@ -190,7 +190,7 @@ func main() {
 			bgy++
 		}
 
-		display.DrawRGBBitmap(minx, miny, frameBuffer[:width*height], width, height)
+		display.DrawRGBBitmapDMA(minx, miny, frameBuffer[:width*height], width, height)
 
 		// Show approximate frame rate
 		frame++

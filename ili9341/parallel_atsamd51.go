@@ -107,3 +107,11 @@ func (pd *parallelDriver) write16sl(data []uint16) {
 		pd.write8(byte(data[i]))
 	}
 }
+
+//go:inline
+func (pd *parallelDriver) write16sldma(data []uint16) {
+	for i, c := 0, len(data); i < c; i++ {
+		pd.write8(byte(data[i] >> 8))
+		pd.write8(byte(data[i]))
+	}
+}

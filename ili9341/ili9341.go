@@ -157,10 +157,10 @@ func (d *Device) DrawRGBBitmapDMA(x, y int16, data []uint16, w, h int16) error {
 		x >= k || (x+w) > k || y >= i || (y+h) > i {
 		return errors.New("rectangle coordinates outside display area")
 	}
+	d.endWrite()
 	d.setWindow(x, y, w, h)
 	d.startWrite()
-	d.driver.write16sl(data)
-	d.endWrite()
+	d.driver.write16sldma(data)
 	return nil
 }
 
@@ -306,6 +306,7 @@ type driver interface {
 	write16(data uint16)
 	write16n(data uint16, n int)
 	write16sl(data []uint16)
+	write16sldma(data []uint16)
 }
 
 func delay(m int) {
