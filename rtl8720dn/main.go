@@ -1,4 +1,4 @@
-package main
+package rtl8720dn
 
 import (
 	"device/sam"
@@ -236,174 +236,174 @@ var (
 	debug   = true
 )
 
-func main() {
-	//machine.OUTPUT_CTR_5V.Configure(machine.PinConfig{Mode: machine.PinOutput})
-	//machine.OUTPUT_CTR_3V3.Configure(machine.PinConfig{Mode: machine.PinOutput})
-
-	//machine.OUTPUT_CTR_5V.High()
-	//machine.OUTPUT_CTR_3V3.Low()
-
-	machine.SPI1.Configure(machine.SPIConfig{
-		SCK:       machine.SCK1,
-		MOSI:      machine.MOSI1,
-		MISO:      machine.MISO1,
-		Frequency: 6000000,
-		LSBFirst:  false,
-		Mode:      0, // phase=0, polarity=0
-	})
-
-	d := New(
-		machine.SPI1,
-		machine.RTL8720D_CHIP_PU,
-		machine.RTL8720D_GPIO0,
-		machine.SS1,
-		machine.UART2_RX_PIN,
-	)
-
-	d.Configure(&Config{})
-	time.Sleep(100 * time.Millisecond)
-
-	time.Sleep(1000 * time.Millisecond)
-	fmt.Printf("Ready! Enter some AT commands\r\n")
-
-	led := machine.LED
-	led.Configure(machine.PinConfig{Mode: machine.PinOutput})
-
-	s_buf := [4096 + 2]byte{}
-
-	//{
-	//	// 最初の ready を読み込んでおく
-	//	r2 := 0
-	//	var err error
-
-	//	for r2 == 0 {
-	//		r2, err = d.at_spi_read(s_buf[:])
-	//		if err != nil {
-	//			fmt.Printf("%s\r\n", err.Error())
-	//		}
-	//		if r2 < 0 {
-	//			fmt.Printf("AT_READ ERR %d\r\n", r2)
-	//		} else if r2 == 0 {
-	//			// skip
-	//		} else {
-	//			fmt.Printf("rx len: %d\r\n--\r\n", r2)
-	//			fmt.Printf("%s", s_buf[:r2])
-	//		}
-	//	}
-	//}
-
-	var err error
-	r1 := 0
-	r2 := 0
-	rx := 0
-	c := 0
-	cmd := [1024]byte{}
-	multiLine := false
-	for {
-		rx = 0
-		for r2 == 0 {
-			r2, err = d.at_spi_read(s_buf[:])
-			if err != nil {
-				fmt.Printf("%s\r\n", err.Error())
-			}
-			if r2 < 0 {
-				fmt.Printf("AT_READ ERR %d\r\n", r2)
-			} else if r2 == 0 {
-				// skip
-			} else {
-				rx += int(r2)
-				//fmt.Printf("rx len: %d\r\n--\r\n", r2)
-				if debug {
-					fmt.Printf("--\r\n")
-				}
-				fmt.Printf("%s", s_buf[:r2])
-				if r2 == 5 && string(s_buf[:r2]) == "OK\r\n>" {
-					multiLine = true
-				} else {
-					multiLine = false
-				}
-			}
-		}
-
-		for 0 < r2 {
-			r2, err = d.at_spi_read(s_buf[:])
-			if err != nil {
-				fmt.Printf("%s\r\n", err.Error())
-			}
-			if r2 < 0 {
-				fmt.Printf("AT_READ ERR %d\r\n", r2)
-			} else if r2 == 0 {
-				// skip
-				if debug {
-					fmt.Printf("-- done %d\r\n", rx)
-				}
-			} else {
-				//fmt.Printf("rx len: %d\r\n--\r\n", r2)
-				fmt.Printf("%s", s_buf[:r2])
-				rx += int(r2)
-			}
-		}
-
-		led.Toggle()
-		//time.Sleep(10000 * time.Millisecond)
-		//time.Sleep(30000 * time.Millisecond)
-
-		c = 0
-		for c == 0 {
-
-			if !multiLine {
-				prompt()
-			}
-			c = readline(cmd[:], multiLine)
-		}
-		//fmt.Printf("readline %d\r\n", c)
-		//r, err := d.at_spi_write([]byte(cmd+"\r\n\x00"), 5, 0)
-		r1, err = d.at_spi_write(cmd[:c])
-		if err != nil {
-			fmt.Printf("%s\r\n", err.Error())
-		}
-		if r1 < 0 {
-			fmt.Printf("AT_WRITE ERR %d\r\n", r1)
-		}
-		//fmt.Printf("tx len: %d\r\n", r1)
-
-	}
-}
-
-func readline(buf []byte, multiLine bool) int {
-	idx := 0
-	for {
-		if console.Buffered() > 0 {
-			data, _ := console.ReadByte()
-
-			switch data {
-			case 10:
-				// skip
-			case 13:
-				// return key
-				if idx == 0 {
-					return 0
-				}
-				buf[idx] = '\r'
-				idx++
-				buf[idx] = '\n'
-				idx++
-
-				if !multiLine {
-					return idx
-				}
-				if 3 < idx && buf[idx-3] == '+' {
-					fmt.Printf("[%s]\r\n", string(buf[:idx-3]))
-					return idx - 3
-				}
-			default:
-				buf[idx] = data
-				idx++
-			}
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-}
+//func main() {
+//	//machine.OUTPUT_CTR_5V.Configure(machine.PinConfig{Mode: machine.PinOutput})
+//	//machine.OUTPUT_CTR_3V3.Configure(machine.PinConfig{Mode: machine.PinOutput})
+//
+//	//machine.OUTPUT_CTR_5V.High()
+//	//machine.OUTPUT_CTR_3V3.Low()
+//
+//	machine.SPI1.Configure(machine.SPIConfig{
+//		SCK:       machine.SCK1,
+//		MOSI:      machine.MOSI1,
+//		MISO:      machine.MISO1,
+//		Frequency: 6000000,
+//		LSBFirst:  false,
+//		Mode:      0, // phase=0, polarity=0
+//	})
+//
+//	d := New(
+//		machine.SPI1,
+//		machine.RTL8720D_CHIP_PU,
+//		machine.RTL8720D_GPIO0,
+//		machine.SS1,
+//		machine.UART2_RX_PIN,
+//	)
+//
+//	d.Configure(&Config{})
+//	time.Sleep(100 * time.Millisecond)
+//
+//	time.Sleep(1000 * time.Millisecond)
+//	fmt.Printf("Ready! Enter some AT commands\r\n")
+//
+//	led := machine.LED
+//	led.Configure(machine.PinConfig{Mode: machine.PinOutput})
+//
+//	s_buf := [4096 + 2]byte{}
+//
+//	//{
+//	//	// 最初の ready を読み込んでおく
+//	//	r2 := 0
+//	//	var err error
+//
+//	//	for r2 == 0 {
+//	//		r2, err = d.at_spi_read(s_buf[:])
+//	//		if err != nil {
+//	//			fmt.Printf("%s\r\n", err.Error())
+//	//		}
+//	//		if r2 < 0 {
+//	//			fmt.Printf("AT_READ ERR %d\r\n", r2)
+//	//		} else if r2 == 0 {
+//	//			// skip
+//	//		} else {
+//	//			fmt.Printf("rx len: %d\r\n--\r\n", r2)
+//	//			fmt.Printf("%s", s_buf[:r2])
+//	//		}
+//	//	}
+//	//}
+//
+//	var err error
+//	r1 := 0
+//	r2 := 0
+//	rx := 0
+//	c := 0
+//	cmd := [1024]byte{}
+//	multiLine := false
+//	for {
+//		rx = 0
+//		for r2 == 0 {
+//			r2, err = d.at_spi_read(s_buf[:])
+//			if err != nil {
+//				fmt.Printf("%s\r\n", err.Error())
+//			}
+//			if r2 < 0 {
+//				fmt.Printf("AT_READ ERR %d\r\n", r2)
+//			} else if r2 == 0 {
+//				// skip
+//			} else {
+//				rx += int(r2)
+//				//fmt.Printf("rx len: %d\r\n--\r\n", r2)
+//				if debug {
+//					fmt.Printf("--\r\n")
+//				}
+//				fmt.Printf("%s", s_buf[:r2])
+//				if r2 == 5 && string(s_buf[:r2]) == "OK\r\n>" {
+//					multiLine = true
+//				} else {
+//					multiLine = false
+//				}
+//			}
+//		}
+//
+//		for 0 < r2 {
+//			r2, err = d.at_spi_read(s_buf[:])
+//			if err != nil {
+//				fmt.Printf("%s\r\n", err.Error())
+//			}
+//			if r2 < 0 {
+//				fmt.Printf("AT_READ ERR %d\r\n", r2)
+//			} else if r2 == 0 {
+//				// skip
+//				if debug {
+//					fmt.Printf("-- done %d\r\n", rx)
+//				}
+//			} else {
+//				//fmt.Printf("rx len: %d\r\n--\r\n", r2)
+//				fmt.Printf("%s", s_buf[:r2])
+//				rx += int(r2)
+//			}
+//		}
+//
+//		led.Toggle()
+//		//time.Sleep(10000 * time.Millisecond)
+//		//time.Sleep(30000 * time.Millisecond)
+//
+//		c = 0
+//		for c == 0 {
+//
+//			if !multiLine {
+//				prompt()
+//			}
+//			c = readline(cmd[:], multiLine)
+//		}
+//		//fmt.Printf("readline %d\r\n", c)
+//		//r, err := d.at_spi_write([]byte(cmd+"\r\n\x00"), 5, 0)
+//		r1, err = d.at_spi_write(cmd[:c])
+//		if err != nil {
+//			fmt.Printf("%s\r\n", err.Error())
+//		}
+//		if r1 < 0 {
+//			fmt.Printf("AT_WRITE ERR %d\r\n", r1)
+//		}
+//		//fmt.Printf("tx len: %d\r\n", r1)
+//
+//	}
+//}
+//
+//func readline(buf []byte, multiLine bool) int {
+//	idx := 0
+//	for {
+//		if console.Buffered() > 0 {
+//			data, _ := console.ReadByte()
+//
+//			switch data {
+//			case 10:
+//				// skip
+//			case 13:
+//				// return key
+//				if idx == 0 {
+//					return 0
+//				}
+//				buf[idx] = '\r'
+//				idx++
+//				buf[idx] = '\n'
+//				idx++
+//
+//				if !multiLine {
+//					return idx
+//				}
+//				if 3 < idx && buf[idx-3] == '+' {
+//					fmt.Printf("[%s]\r\n", string(buf[:idx-3]))
+//					return idx - 3
+//				}
+//			default:
+//				buf[idx] = data
+//				idx++
+//			}
+//		}
+//		time.Sleep(10 * time.Millisecond)
+//	}
+//}
 
 func prompt() {
 	print("ESPAT>")
