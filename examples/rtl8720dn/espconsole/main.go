@@ -10,9 +10,11 @@
 package main
 
 import (
+	"fmt"
 	"machine"
 	"time"
 
+	"github.com/tinygo-org/drivers/rtl8720dn"
 	"tinygo.org/x/drivers/espat"
 )
 
@@ -20,8 +22,8 @@ import (
 const actAsAP = false
 
 // access point info
-const ssid = "YOURSSID"
-const pass = "YOURPASS"
+var ssid = "YOURSSID"
+var pass = "YOURPASS"
 
 // these are the default pins for the Arduino Nano33 IoT.
 // change these to connect to a different UART or pins for the ESP8266/ESP32
@@ -30,29 +32,47 @@ var (
 	tx   = machine.PA22
 	rx   = machine.PA23
 
-	console = machine.UART0
+	adaptorE *espat.Device
+	console  = machine.UART0
 
-	adaptor *espat.Device
+	spi     machine.SPI
+	adaptor *rtl8720dn.Device
+
+	chipPu    machine.Pin
+	syncPin   machine.Pin
+	csPin     machine.Pin
+	uartRxPin machine.Pin
+
+	s_buf = [2][2048]byte{}
 )
 
 func main() {
-	uart.Configure(machine.UARTConfig{TX: tx, RX: rx})
+	led := machine.LED
+	led.Configure(machine.PinConfig{Mode: machine.PinOutput})
 
-	// Init esp8266
-	adaptor = espat.New(uart)
-	adaptor.Configure()
+	adaptor = rtl8720dn.New(spi, chipPu, syncPin, csPin, uartRxPin)
+	adaptor.Configure(&rtl8720dn.Config{})
 
-	// first check if connected
-	if connectToESP() {
-		println("Connected to wifi adaptor.")
-		adaptor.Echo(false)
+	time.Sleep(100 * time.Millisecond)
 
-		connectToAP()
-	} else {
-		println("")
-		failMessage("Unable to connect to wifi adaptor.")
-		return
-	}
+	time.Sleep(1000 * time.Millisecond) // for debug
+	fmt.Printf("Ready! Enter some AT commands\r\n")
+
+	//// Init esp8266
+	//adaptor = espat.New(uart)
+	//adaptor.Configure()
+
+	//// first check if connected
+	//if connectToESP() {
+	//	println("Connected to wifi adaptor.")
+	//	adaptor.Echo(false)
+
+	//	connectToAP()
+	//} else {
+	//	println("")
+	//	failMessage("Unable to connect to wifi adaptor.")
+	//	return
+	//}
 
 	println("Type an AT command then press enter:")
 	prompt()
@@ -74,7 +94,10 @@ func main() {
 				adaptor.Write(input[:i+2])
 
 				// display response
-				r, _ := adaptor.Response(500)
+				r, err := adaptor.Response(10000)
+				if err != nil {
+					fmt.Fprintf(console, "%s\r\n", err.Error())
+				}
 				console.Write(r)
 
 				// prompt
@@ -101,7 +124,7 @@ func prompt() {
 func connectToESP() bool {
 	for i := 0; i < 5; i++ {
 		println("Connecting to wifi adaptor...")
-		if adaptor.Connected() {
+		if adaptorE.Connected() {
 			return true
 		}
 		time.Sleep(1 * time.Second)
@@ -113,25 +136,15 @@ func connectToESP() bool {
 func connectToAP() {
 	println("Connecting to wifi network '" + ssid + "'")
 
-	adaptor.SetWifiMode(espat.WifiModeClient)
-	adaptor.ConnectToAP(ssid, pass, 10)
+	adaptorE.SetWifiMode(espat.WifiModeClient)
+	adaptorE.ConnectToAP(ssid, pass, 10)
 
 	println("Connected.")
-	ip, err := adaptor.GetClientIP()
+	ip, err := adaptorE.GetClientIP()
 	if err != nil {
 		failMessage(err.Error())
 	}
 
-	println(ip)
-}
-
-// provide access point
-func provideAP() {
-	println("Starting wifi network as access point '" + ssid + "'...")
-	adaptor.SetWifiMode(espat.WifiModeAP)
-	adaptor.SetAPConfig(ssid, pass, 7, espat.WifiAPSecurityWPA2_PSK)
-	println("Ready.")
-	ip, _ := adaptor.GetAPIP()
 	println(ip)
 }
 
