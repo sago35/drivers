@@ -1,6 +1,7 @@
 package ili9341
 
 import (
+	"device/sam"
 	"errors"
 	"image/color"
 	"machine"
@@ -157,9 +158,9 @@ func (d *Device) DrawRGBBitmapDMA(x, y int16, data []uint16, w, h int16) error {
 		x >= k || (x+w) > k || y >= i || (y+h) > i {
 		return errors.New("rectangle coordinates outside display area")
 	}
-	d.endWrite()
-	d.setWindow(x, y, w, h)
-	d.startWrite()
+	//d.endWrite()
+	d.setWindow2(x, y, w, h)
+	//d.startWrite()
 	d.driver.write16sldma(data)
 	return nil
 }
@@ -275,6 +276,20 @@ func (d *Device) setWindow(x, y, w, h int16) {
 	d.sendCommand(RAMWR, nil)
 }
 
+func (d *Device) setWindow2(x, y, w, h int16) {
+	//x += d.columnOffset
+	//y += d.rowOffset
+	for !machine.SPI3.Bus.INTFLAG.HasBits(sam.SERCOM_SPIS_INTFLAG_DRE) {
+	}
+	d.sendCommand2(CASET, []uint8{
+		uint8(x >> 8), uint8(x), uint8((x + w - 1) >> 8), uint8(x + w - 1),
+	})
+	d.sendCommand2(PASET, []uint8{
+		uint8(y >> 8), uint8(y), uint8((y + h - 1) >> 8), uint8(y + h - 1),
+	})
+	d.sendCommand2(RAMWR, nil)
+}
+
 //go:inline
 func (d *Device) startWrite() {
 	if d.cs != machine.NoPin {
@@ -298,11 +313,25 @@ func (d *Device) sendCommand(cmd byte, data []byte) {
 	d.endWrite()
 }
 
+func (d *Device) sendCommand2(cmd byte, data []byte) {
+	for !machine.SPI3.Bus.INTFLAG.HasBits(sam.SERCOM_SPIS_INTFLAG_DRE) {
+	}
+	d.dc.Low()
+	//d.driver.write82(cmd)
+	machine.SPI3.Bus.DATA.Set(uint32(cmd))
+	d.dc.High()
+	if data != nil {
+		d.driver.write8sl2(data)
+	}
+}
+
 type driver interface {
 	configure(config *Config)
 	write8(b byte)
+	write82(b byte)
 	write8n(b byte, n int)
 	write8sl(b []byte)
+	write8sl2(b []byte)
 	write16(data uint16)
 	write16n(data uint16, n int)
 	write16sl(data []uint16)

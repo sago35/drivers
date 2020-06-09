@@ -3,6 +3,7 @@
 package main
 
 import (
+	"device/sam"
 	"machine"
 	"time"
 
@@ -11,11 +12,11 @@ import (
 )
 
 const (
-	BGCOLOR    = 0xAD75
-	GRIDCOLOR  = 0xA815
-	BGSHADOW   = 0x5285
-	GRIDSHADOW = 0x600C
-	RED        = 0xF800
+	BGCOLOR    = 0x75AD
+	GRIDCOLOR  = 0x15A8
+	BGSHADOW   = 0x8552
+	GRIDSHADOW = 0x0C60
+	RED        = 0x00F8
 	WHITE      = 0xFFFF
 
 	YBOTTOM = 123  // Ball Y coord at bottom
@@ -71,6 +72,8 @@ func main() {
 	balloldx = ballx
 	balloldy = bally // Prior ball position
 
+	machine.LCD_SS_PIN.Low()
+	machine.SPI3.Bus.CTRLB.ClearBits(sam.SERCOM_SPIS_CTRLB_RXEN)
 	for {
 
 		balloldx = ballx // Save prior position
@@ -190,11 +193,12 @@ func main() {
 			bgy++
 		}
 
+		//display.DrawRGBBitmap(minx, miny, frameBuffer[:width*height], width, height)
 		display.DrawRGBBitmapDMA(minx, miny, frameBuffer[:width*height], width, height)
 
 		// Show approximate frame rate
 		frame++
-		if frame&255 == 0 { // Every 256 frames...
+		if frame&0xFF == 0 { // Every 256 frames...
 			elapsed := (time.Now().UnixNano() - startTime) / int64(time.Second)
 			if elapsed > 0 {
 				println(frame/elapsed, " fps")

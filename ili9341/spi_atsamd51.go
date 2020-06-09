@@ -104,34 +104,15 @@ func (d *spiDriver) DmaSend(buf []byte) {
 	sam.DMAC.CHANNEL[d.dmaChannel].CHCTRLA.SetBits(sam.DMAC_CHANNEL_CHCTRLA_ENABLE)
 }
 
-//// startOutputEnableTimer will enable and disable the screen for a very short
-//// time, depending on which bit is currently enabled.
-//func (d *Device2) startOutputEnableTimer() {
-//	// Multiplying the brightness by 3 to be consistent with the nrf52 driver
-//	// (48MHz vs 16MHz).
-//	count := (d.brightness * 3) << d.colorBit
-//	d.timerChannel.Set(0xffff - count)
-//	for d.timer.SYNCBUSY.HasBits(sam.TCC_SYNCBUSY_CC0 | sam.TCC_SYNCBUSY_CC1 | sam.TCC_SYNCBUSY_CC2 | sam.TCC_SYNCBUSY_CC3) {
-//	}
-//	d.timer.CTRLBSET.Set(sam.TCC_CTRLBSET_CMD_RETRIGGER << sam.TCC_CTRLBSET_CMD_Pos)
-//}
+func (d *spiDriver) DmaSend16(buf []uint16) {
+	//sam.DMAC.CHANNEL[d.dmaChannel].CHCTRLA.ClearBits(sam.DMAC_CHANNEL_CHCTRLA_ENABLE)
+	descriptor := &dmaDescriptorSection[d.dmaChannel]
+	descriptor.srcaddr = unsafe.Pointer(uintptr(unsafe.Pointer(&buf[0])) + uintptr(len(buf)*2))
+	descriptor.btcnt = uint16(len(buf) * 2) // beat count
 
-//// SPI TXC interrupt is on interrupt line 1.
-////export SERCOM1_1_IRQHandler
-//func spiHandler() {
-//	// Clear the interrupt flag.
-//	display.bus.Bus.INTFLAG.Set(sam.SERCOM_SPIM_INTFLAG_TXC)
-//
-//	display.handleSPIEvent()
-//}
-
-////export TCC1_MC2_IRQHandler
-//func tcc1Handler() {
-//	// Clear the interrupt flag.
-//	sam.TCC1.INTFLAG.Set(sam.TCC_INTFLAG_MC2)
-//
-//	display.handleTimerEvent()
-//}
+	// Start the transfer.
+	sam.DMAC.CHANNEL[d.dmaChannel].CHCTRLA.SetBits(sam.DMAC_CHANNEL_CHCTRLA_ENABLE)
+}
 
 func NewSpi(bus machine.SPI, dc, cs, rst machine.Pin) *Device {
 
@@ -166,6 +147,10 @@ func (pd *spiDriver) write8(b byte) {
 	}
 }
 
+func (pd *spiDriver) write82(b byte) {
+	pd.bus.Bus.DATA.Set(uint32(b))
+}
+
 func (pd *spiDriver) write8n(b byte, n int) {
 	pd.bus.Bus.CTRLB.ClearBits(sam.SERCOM_SPIS_CTRLB_RXEN)
 
@@ -192,6 +177,37 @@ func (pd *spiDriver) write8sl(b []byte) {
 	pd.bus.Bus.CTRLB.SetBits(sam.SERCOM_SPIS_CTRLB_RXEN)
 	for pd.bus.Bus.SYNCBUSY.HasBits(sam.SERCOM_SPIS_SYNCBUSY_CTRLB) {
 	}
+}
+
+//go:inline
+func (pd *spiDriver) write8sl2(b []byte) {
+	pd.DmaSend(b)
+
+	//pd.bus.Bus.DATA.Set(uint32(b[0]))
+
+	//for !pd.bus.Bus.INTFLAG.HasBits(sam.SERCOM_SPIS_INTFLAG_DRE) {
+	//}
+	//pd.bus.Bus.DATA.Set(uint32(b[1]))
+
+	//for !pd.bus.Bus.INTFLAG.HasBits(sam.SERCOM_SPIS_INTFLAG_DRE) {
+	//}
+	//pd.bus.Bus.DATA.Set(uint32(b[2]))
+
+	//for !pd.bus.Bus.INTFLAG.HasBits(sam.SERCOM_SPIS_INTFLAG_DRE) {
+	//}
+	//pd.bus.Bus.DATA.Set(uint32(b[3]))
+
+	//pd.bus.Bus.CTRLB.ClearBits(sam.SERCOM_SPIS_CTRLB_RXEN)
+
+	//for i, c := 0, len(b); i < c; i++ {
+	//	for !pd.bus.Bus.INTFLAG.HasBits(sam.SERCOM_SPIS_INTFLAG_DRE) {
+	//	}
+	//	pd.bus.Bus.DATA.Set(uint32(b[i]))
+	//}
+
+	//pd.bus.Bus.CTRLB.SetBits(sam.SERCOM_SPIS_CTRLB_RXEN)
+	//for pd.bus.Bus.SYNCBUSY.HasBits(sam.SERCOM_SPIS_SYNCBUSY_CTRLB) {
+	//}
 }
 
 func (pd *spiDriver) write16(data uint16) {
@@ -232,10 +248,10 @@ func (pd *spiDriver) write16sl(data []uint16) {
 	for i, c := 0, len(data); i < c; i++ {
 		for !pd.bus.Bus.INTFLAG.HasBits(sam.SERCOM_SPIS_INTFLAG_DRE) {
 		}
-		pd.bus.Bus.DATA.Set(uint32(uint8(data[i] >> 8)))
+		pd.bus.Bus.DATA.Set(uint32(uint8(data[i])))
 		for !pd.bus.Bus.INTFLAG.HasBits(sam.SERCOM_SPIS_INTFLAG_DRE) {
 		}
-		pd.bus.Bus.DATA.Set(uint32(uint8(data[i])))
+		pd.bus.Bus.DATA.Set(uint32(uint8(data[i] >> 8)))
 	}
 
 	pd.bus.Bus.CTRLB.SetBits(sam.SERCOM_SPIS_CTRLB_RXEN)
@@ -243,10 +259,10 @@ func (pd *spiDriver) write16sl(data []uint16) {
 	}
 }
 
-var bb [32000]byte
+//var bb [32000]byte
 
 func (pd *spiDriver) write16sldma(data []uint16) {
-	pd.bus.Bus.CTRLB.ClearBits(sam.SERCOM_SPIS_CTRLB_RXEN)
+	//pd.bus.Bus.CTRLB.ClearBits(sam.SERCOM_SPIS_CTRLB_RXEN)
 
 	if false {
 		for i, c := 0, len(data); i < c; i++ {
@@ -258,16 +274,19 @@ func (pd *spiDriver) write16sldma(data []uint16) {
 			pd.bus.Bus.DATA.Set(uint32(uint8(data[i])))
 		}
 	} else {
-		buf := bb[:len(data)*2]
-
-		for i, c := 0, len(data); i < c; i++ {
-			buf[i*2+0] = uint8(data[i] >> 8)
-			buf[i*2+1] = uint8(data[i])
-		}
+		//buf := bb[:len(data)*2]
+		//for i, c := 0, len(data); i < c; i++ {
+		//	buf[i*2+0] = uint8(data[i] >> 8)
+		//	buf[i*2+1] = uint8(data[i])
+		//}
 
 		//ch := sam.DMAC.CHANNEL[pd.dmaChannel]
 		//ch.CHINTFLAG.SetBits(sam.DMAC_CHANNEL_CHINTFLAG_TCMPL)
-		pd.DmaSend(buf)
+		//pd.DmaSend(buf)
+		pd.DmaSend16(data)
+		//for !pd.bus.Bus.INTFLAG.HasBits(sam.SERCOM_SPIS_INTFLAG_TXC) {
+		//}
+		//time.Sleep(20 * time.Millisecond)
 
 		//for ch.CHSTATUS.HasBits(sam.DMAC_CHANNEL_CHSTATUS_BUSY) {
 		//	//fmt.Printf("x CHINTFLAG %#v\r\n", ch.CHSTATUS)
@@ -290,7 +309,7 @@ func (pd *spiDriver) write16sldma(data []uint16) {
 		//}
 	}
 
-	pd.bus.Bus.CTRLB.SetBits(sam.SERCOM_SPIS_CTRLB_RXEN)
-	for pd.bus.Bus.SYNCBUSY.HasBits(sam.SERCOM_SPIS_SYNCBUSY_CTRLB) {
-	}
+	//pd.bus.Bus.CTRLB.SetBits(sam.SERCOM_SPIS_CTRLB_RXEN)
+	//for pd.bus.Bus.SYNCBUSY.HasBits(sam.SERCOM_SPIS_SYNCBUSY_CTRLB) {
+	//}
 }

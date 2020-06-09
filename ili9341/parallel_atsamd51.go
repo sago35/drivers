@@ -67,6 +67,12 @@ func (pd *parallelDriver) write8(b byte) {
 }
 
 //go:inline
+func (pd *parallelDriver) write82(b byte) {
+	volatile.StoreUint8(pd.setPort, uint8(b))
+	pd.wrx()
+}
+
+//go:inline
 func (pd *parallelDriver) wrx() {
 	volatile.StoreUint32(pd.wrPortClr, pd.wrMaskClr)
 	volatile.StoreUint32(pd.wrPortSet, pd.wrMaskSet)
@@ -81,6 +87,13 @@ func (pd *parallelDriver) write8n(b byte, n int) {
 
 //go:inline
 func (pd *parallelDriver) write8sl(b []byte) {
+	for i := 0; i < len(b); i++ {
+		pd.write8(b[i])
+	}
+}
+
+//go:inline
+func (pd *parallelDriver) write8sl2(b []byte) {
 	for i := 0; i < len(b); i++ {
 		pd.write8(b[i])
 	}
