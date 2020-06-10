@@ -12,7 +12,7 @@ func init() {
 		SCK:       machine.SCK1,
 		MOSI:      machine.MOSI1,
 		MISO:      machine.MISO1,
-		Frequency: 6000000,
+		Frequency: 40000000,
 		LSBFirst:  false,
 		Mode:      0, // phase=0, polarity=0
 	})
