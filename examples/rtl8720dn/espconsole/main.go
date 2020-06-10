@@ -55,24 +55,20 @@ func main() {
 
 	time.Sleep(100 * time.Millisecond)
 
-	time.Sleep(1000 * time.Millisecond) // for debug
+	time.Sleep(2000 * time.Millisecond) // for debug
 	fmt.Printf("Ready! Enter some AT commands\r\n")
 
-	//// Init esp8266
-	//adaptor = espat.New(uart)
-	//adaptor.Configure()
+	// first check if connected
+	if connectToESP() {
+		println("Connected to wifi adaptor.")
+		//adaptor.Echo(false)
 
-	//// first check if connected
-	//if connectToESP() {
-	//	println("Connected to wifi adaptor.")
-	//	adaptor.Echo(false)
-
-	//	connectToAP()
-	//} else {
-	//	println("")
-	//	failMessage("Unable to connect to wifi adaptor.")
-	//	return
-	//}
+		connectToAP()
+	} else {
+		println("")
+		failMessage("Unable to connect to wifi adaptor.")
+		return
+	}
 
 	println("Type an AT command then press enter:")
 	prompt()
@@ -94,11 +90,12 @@ func main() {
 				adaptor.Write(input[:i+2])
 
 				// display response
-				r, err := adaptor.Response(10000)
+				r, err := adaptor.Response(30000)
 				if err != nil {
 					fmt.Fprintf(console, "%s\r\n", err.Error())
+				} else {
+					console.Write(r)
 				}
-				console.Write(r)
 
 				// prompt
 				prompt()
@@ -124,7 +121,7 @@ func prompt() {
 func connectToESP() bool {
 	for i := 0; i < 5; i++ {
 		println("Connecting to wifi adaptor...")
-		if adaptorE.Connected() {
+		if adaptor.Connected() {
 			return true
 		}
 		time.Sleep(1 * time.Second)
@@ -136,11 +133,18 @@ func connectToESP() bool {
 func connectToAP() {
 	println("Connecting to wifi network '" + ssid + "'")
 
-	adaptorE.SetWifiMode(espat.WifiModeClient)
-	adaptorE.ConnectToAP(ssid, pass, 10)
+	err := adaptor.SetWifiMode(espat.WifiModeClient)
+	if err != nil {
+		failMessage(err.Error())
+	}
+
+	err = adaptor.ConnectToAP(ssid, pass, 20)
+	if err != nil {
+		failMessage(err.Error())
+	}
 
 	println("Connected.")
-	ip, err := adaptorE.GetClientIP()
+	ip, err := adaptor.GetClientIP()
 	if err != nil {
 		failMessage(err.Error())
 	}
