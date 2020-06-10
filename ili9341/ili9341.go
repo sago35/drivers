@@ -279,8 +279,6 @@ func (d *Device) setWindow(x, y, w, h int16) {
 func (d *Device) setWindow2(x, y, w, h int16) {
 	//x += d.columnOffset
 	//y += d.rowOffset
-	for !machine.SPI3.Bus.INTFLAG.HasBits(sam.SERCOM_SPIS_INTFLAG_DRE) {
-	}
 	d.sendCommand2(CASET, []uint8{
 		uint8(x >> 8), uint8(x), uint8((x + w - 1) >> 8), uint8(x + w - 1),
 	})
@@ -314,11 +312,13 @@ func (d *Device) sendCommand(cmd byte, data []byte) {
 }
 
 func (d *Device) sendCommand2(cmd byte, data []byte) {
-	for !machine.SPI3.Bus.INTFLAG.HasBits(sam.SERCOM_SPIS_INTFLAG_DRE) {
+	for !machine.SPI3.Bus.INTFLAG.HasBits(sam.SERCOM_SPIS_INTFLAG_TXC) {
 	}
 	d.dc.Low()
 	//d.driver.write82(cmd)
 	machine.SPI3.Bus.DATA.Set(uint32(cmd))
+	for !machine.SPI3.Bus.INTFLAG.HasBits(sam.SERCOM_SPIS_INTFLAG_TXC) {
+	}
 	d.dc.High()
 	if data != nil {
 		d.driver.write8sl2(data)
