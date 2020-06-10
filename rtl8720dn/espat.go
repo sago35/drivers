@@ -109,7 +109,7 @@ func (d *Device) Connected() bool {
 	d.Execute(Test)
 
 	// handle response here, should include "OK"
-	_, err := d.Response(100)
+	_, err := d.Response(1000)
 	if err != nil {
 		return false
 	}
@@ -237,6 +237,11 @@ func (d *Device) Response(timeout int) ([]byte, error) {
 
 			// if "Error" then the command failed
 			if strings.Contains(string(d.response[:end]), "ERROR") {
+				return d.response[start:end], errors.New("response error:" + string(d.response[start:end]))
+			}
+
+			// if "unknown command" then the command failed
+			if strings.Contains(string(d.response[:end]), "\r\nunknown command ") {
 				return d.response[start:end], errors.New("response error:" + string(d.response[start:end]))
 			}
 

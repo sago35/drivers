@@ -25,7 +25,7 @@ func (d *Device) GetWifiMode() ([]byte, error) {
 func (d *Device) SetWifiMode(mode int) error {
 	val := strconv.Itoa(mode)
 	d.Set(WifiMode, val)
-	_, err := d.Response(pause)
+	_, err := d.Response(pause * 10)
 	return err
 }
 
@@ -60,7 +60,7 @@ func (d *Device) DisconnectFromAP() error {
 // GetClientIP returns the ESP8266/ESP32 current client IP addess when connected to an Access Point.
 func (d *Device) GetClientIP() (string, error) {
 	d.Query(SetStationIP)
-	r, err := d.Response(1000)
+	r, err := d.Response(10000)
 	return string(r), err
 }
 
