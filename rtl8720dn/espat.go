@@ -219,16 +219,17 @@ func (d *Device) Response(timeout int) ([]byte, error) {
 
 		if size > 0 {
 			end += size
+			fmt.Printf("res: %q\r\n", d.response[start:end])
 
 			if strings.Contains(string(d.response[:end]), "ready") {
 				return d.response[start:end], nil
 			}
 
-			// if "+IPD" then read socket data
-			if strings.Contains(string(d.response[:end]), "+IPD") {
-				// handle socket data
-				return nil, d.parseIPD(end)
-			}
+			//// if "+IPD" then read socket data
+			//if strings.Contains(string(d.response[:end]), "+IPD") {
+			//	// handle socket data
+			//	return nil, d.parseIPD(end)
+			//}
 
 			// if "OK" then the command worked
 			if strings.Contains(string(d.response[:end]), "OK") {
@@ -285,4 +286,87 @@ func (d *Device) parseIPD(end int) error {
 func (d *Device) IsSocketDataAvailable() bool {
 	//return len(d.socketdata) > 0 || d.bus.Buffered() > 0
 	return false
+}
+
+func (d *Device) ParseCIPSEND(b []byte) (int, int, error) {
+	// `AT+CIPSEND="0","38"`
+	// TODO: error check
+	ch := 0
+	length := 0
+	_, err := fmt.Sscanf(string(b[11:]), `"%d","%d"`, &ch, &length)
+	return ch, length, err
+}
+
+// ResponseIPD gets the next response bytes from the ESP8266/ESP32.
+// The call will retry for up to timeout milliseconds before returning nothing.
+func (d *Device) ResponseIPD(timeout int) ([]byte, error) {
+	// read data
+	var size int
+	var start, end int
+	pause := 100 // pause to wait for 100 ms
+	retries := timeout / pause
+
+	type STATE int
+	const (
+		stRead STATE = iota
+		stMain
+	)
+	state := stRead
+
+	var err error
+	for {
+		switch state {
+		case stRead:
+			size, err = d.at_spi_read(d.response[start:])
+			if err != nil {
+				return nil, err
+			}
+			if 0 < size {
+				end += size
+				state = stMain
+			} else if size < 0 {
+				return nil, errors.New("err1")
+			} else if size == 0 {
+				// wait longer?
+				retries--
+				if retries == 0 {
+					return nil, errors.New("response timeout error:" + string(d.response[start:end]))
+				}
+
+				time.Sleep(time.Duration(pause) * time.Millisecond)
+			}
+
+		case stMain:
+			if strings.Contains(string(d.response[:end]), "ready") {
+				return d.response[start:end], nil
+			}
+
+			//// if "+IPD" then read socket data
+			//if strings.Contains(string(d.response[:end]), "+IPD") {
+			//	// handle socket data
+			//	return nil, d.parseIPD(end)
+			//}
+
+			// if "OK" then the command worked
+			if strings.Contains(string(d.response[:end]), "OK") {
+				return d.response[start:end], nil
+			}
+
+			// if "Error" then the command failed
+			if strings.Contains(string(d.response[:end]), "ERROR") {
+				return d.response[start:end], errors.New("response error:" + string(d.response[start:end]))
+			}
+
+			// if "unknown command" then the command failed
+			if strings.Contains(string(d.response[:end]), "\r\nunknown command ") {
+				return d.response[start:end], errors.New("response error:" + string(d.response[start:end]))
+			}
+
+			// if anything else, then keep reading data in?
+			state = stRead
+			start = end
+		default:
+		}
+
+	}
 }

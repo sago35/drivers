@@ -10,6 +10,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"machine"
 	"time"
@@ -75,26 +76,81 @@ func main() {
 
 	input := make([]byte, 64)
 	i := 0
+
+	req := make([]byte, 1024)
+	reqIdx := 0
 	for {
 		if console.Buffered() > 0 {
 			data, _ := console.ReadByte()
 
 			switch data {
-			case 13:
+			case '\r':
 				// return key
 				console.Write([]byte("\r\n"))
 
-				// send command to ESP8266
-				input[i] = byte('\r')
-				input[i+1] = byte('\n')
-				adaptor.Write(input[:i+2])
+				if bytes.HasPrefix(input[:i], []byte("AT+CIPSEND=")) {
+					ch, length, err := adaptor.ParseCIPSEND(input)
+					fmt.Printf("%d %d %#v\r\n", ch, length, err)
+					// lenght は無視して、プロンプトを出す
+					// \r\n\r\n が suffix になったら実際の送信を行う
+					for {
+						if console.Buffered() > 0 {
+							data, _ := console.ReadByte()
+							req[reqIdx] = data
+							reqIdx++
+							if data == '\r' {
+								req[reqIdx] = '\n'
+								reqIdx++
+								console.Write([]byte("\r\n"))
+							} else {
+								console.WriteByte(data)
+							}
+							if bytes.HasSuffix(req[:reqIdx], []byte("\r\n\r\n")) {
+								break
+							}
+							time.Sleep(10 * time.Millisecond)
+						}
+					}
+					fmt.Printf("req: %q\r\n", req[:reqIdx])
+					fmt.Printf("len: %d\r\n", len(req[:reqIdx]))
 
-				// display response
-				r, err := adaptor.Response(30000)
-				if err != nil {
-					fmt.Fprintf(console, "%s\r\n", err.Error())
+					adaptor.Write([]byte(fmt.Sprintf("AT+CIPSEND=\"%d\",\"%d\"\r\n", ch, reqIdx)))
+
+					// display response
+					fmt.Printf("-- req1\r\n")
+					r, err := adaptor.Response(30000)
+					if err != nil {
+						fmt.Fprintf(console, "%s\r\n", err.Error())
+					} else {
+						console.Write(r)
+					}
+
+					adaptor.Write(req[:reqIdx])
+
+					// display response
+					fmt.Printf("-- req2\r\n")
+					r, err = adaptor.ResponseIPD(30000)
+					if err != nil {
+						fmt.Fprintf(console, "%s\r\n", err.Error())
+					} else {
+						console.Write(r)
+					}
+
+					reqIdx = 0
+
 				} else {
-					console.Write(r)
+					// send command to ESP8266
+					input[i] = byte('\r')
+					input[i+1] = byte('\n')
+					adaptor.Write(input[:i+2])
+
+					// display response
+					r, err := adaptor.Response(30000)
+					if err != nil {
+						fmt.Fprintf(console, "%s\r\n", err.Error())
+					} else {
+						console.Write(r)
+					}
 				}
 
 				// prompt
