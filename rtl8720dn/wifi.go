@@ -25,7 +25,7 @@ func (d *Device) GetWifiMode() ([]byte, error) {
 func (d *Device) SetWifiMode(mode int) error {
 	val := strconv.Itoa(mode)
 	d.Set(WifiMode, val)
-	_, err := d.Response(pause * 10)
+	_, err := d.Response(2000)
 	return err
 }
 
