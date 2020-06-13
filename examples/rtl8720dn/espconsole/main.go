@@ -91,7 +91,7 @@ func main() {
 				if bytes.HasPrefix(input[:i], []byte("AT+CIPSEND=")) {
 					ch, length, err := adaptor.ParseCIPSEND(input)
 					fmt.Printf("%d %d %#v\r\n", ch, length, err)
-					// lenght は無視して、プロンプトを出す
+					// length は無視して、プロンプトを出す
 					// \r\n\r\n が suffix になったら実際の送信を行う
 					for {
 						if console.Buffered() > 0 {
@@ -123,6 +123,15 @@ func main() {
 						fmt.Fprintf(console, "%s\r\n", err.Error())
 					} else {
 						console.Write(r)
+					}
+
+					if !bytes.HasSuffix(r, []byte(">")) {
+						r, err := adaptor.Response(30000)
+						if err != nil {
+							fmt.Fprintf(console, "%s\r\n", err.Error())
+						} else {
+							console.Write(r)
+						}
 					}
 
 					adaptor.Write(req[:reqIdx])

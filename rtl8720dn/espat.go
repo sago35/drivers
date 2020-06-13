@@ -19,6 +19,7 @@
 package rtl8720dn
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"machine"
@@ -236,6 +237,10 @@ func (d *Device) Response(timeout int) ([]byte, error) {
 				return d.response[start:end], nil
 			}
 
+			if strings.Contains(string(d.response[:end]), ">") {
+				return d.response[start:end], nil
+			}
+
 			// if "Error" then the command failed
 			if strings.Contains(string(d.response[:end]), "ERROR") {
 				return d.response[start:end], errors.New("response error:" + string(d.response[start:end]))
@@ -302,28 +307,72 @@ func (d *Device) ParseCIPSEND(b []byte) (int, int, error) {
 func (d *Device) ResponseIPD(timeout int) ([]byte, error) {
 	// read data
 	var size int
-	var start, end int
+	var start, end, wp int
 	pause := 100 // pause to wait for 100 ms
 	retries := timeout / pause
 
 	type STATE int
 	const (
-		stRead STATE = iota
+		stRead1 STATE = iota
+		stIPSENDRes
+		stRead2
+		stIpdHeader1
+		stRead3
+		stIpdBody1
+		stRead4
+		stIpdHeader2
+		stRead5
+		stIpdBody2
+		stRead6
 		stMain
 	)
-	state := stRead
+	state := stRead1
+	ipdLen := int(0)
 
 	var err error
+	var header []byte
+	var response Response
+	var contentLength int
+	var contentType string
+	var contentRemain int
+
+	var res []byte
+	dump := func() {
+		res = d.response[start:end]
+		if len(res) == 0 {
+			// skip
+		} else if 64 < len(res) {
+			fmt.Printf("-- %d %d %q...\r\n", start, end, res[:61])
+		} else {
+			//fmt.Printf("-- %d %d %d/%d %d %q\r\n", start, end, contentRemain, contentLength, ipdLen, res)
+			fmt.Printf("-- %d %d %d/%d %d\r\n", start, end, contentRemain, contentLength, ipdLen)
+		}
+	}
+
+	sum := 0
 	for {
+		dump()
 		switch state {
-		case stRead:
-			size, err = d.at_spi_read(d.response[start:])
+		case stRead1, stRead2, stRead3, stRead4, stRead5, stRead6:
+			size, err = d.at_spi_read(d.response[wp:])
 			if err != nil {
 				return nil, err
 			}
 			if 0 < size {
 				end += size
-				state = stMain
+				//dump()
+				state++
+
+				if false {
+					// TODO: for debug
+					//fmt.Printf("%q\r\n", string(d.response[start:end]))
+					sum += end - start
+					fmt.Printf("[[%d]]%q\r\n", sum, string(d.response[start:end]))
+					start = 0
+					end = 0
+					state--
+					continue
+				}
 			} else if size < 0 {
 				return nil, errors.New("err1")
 			} else if size == 0 {
@@ -336,36 +385,152 @@ func (d *Device) ResponseIPD(timeout int) ([]byte, error) {
 				time.Sleep(time.Duration(pause) * time.Millisecond)
 			}
 
-		case stMain:
-			if strings.Contains(string(d.response[:end]), "ready") {
+		case stIPSENDRes:
+			if !bytes.HasPrefix(d.response[start:end], []byte("\r\nSEND OK\r\n")) {
+				// error?
 				return d.response[start:end], nil
 			}
 
-			//// if "+IPD" then read socket data
-			//if strings.Contains(string(d.response[:end]), "+IPD") {
-			//	// handle socket data
-			//	return nil, d.parseIPD(end)
-			//}
+			start += len([]byte("\r\nSEND OK\r\n"))
+			state = stIpdHeader1
 
-			// if "OK" then the command worked
-			if strings.Contains(string(d.response[:end]), "OK") {
-				return d.response[start:end], nil
+		case stIpdHeader1:
+			if end-start < 7 {
+				state--
+				copy(d.response, d.response[start:end])
+				end = end - start
+				start = 0
+				wp = end
+				continue
+			} else if !bytes.HasPrefix(d.response[start:end], []byte("\r\n+IPD,")) {
+				return nil, errors.New("err2")
+			}
+			idx := bytes.IndexByte(d.response[start:end], byte(':'))
+			if idx < 0 {
+				state--
+				// TODO:
+				//wp += end
+				continue
+			}
+			//fmt.Printf("-- %q\r\n", string(d.response[start:start+idx+1]))
+			s := bytes.Split(d.response[start:start+idx], []byte(","))
+			// ch,len,IP,port
+			l, err := strconv.ParseUint(string(s[2]), 10, 0)
+			if err != nil {
+				return nil, err
+			}
+			ipdLen = int(l)
+
+			start += idx + 1
+			state = stIpdBody1
+
+		case stIpdBody1:
+			// HTTP header
+			endOfHeader := bytes.Index(d.response[start:end], []byte("\r\n\r\n"))
+			if endOfHeader < -1 {
+				state--
+				wp += end
+				continue
+			}
+			endOfHeader += 4
+
+			header = d.response[start : start+endOfHeader]
+			start += endOfHeader
+			ipdLen -= endOfHeader
+			state = stIpdHeader2
+
+			idx := bytes.Index(header, []byte("Content-Length: "))
+			if 0 <= idx {
+				_, err := fmt.Sscanf(string(header[idx+16:]), "%d", &contentLength)
+				if err != nil {
+					return nil, err
+				}
+				contentRemain = contentLength
+				response.ContentLength = int64(contentLength)
 			}
 
-			// if "Error" then the command failed
-			if strings.Contains(string(d.response[:end]), "ERROR") {
-				return d.response[start:end], errors.New("response error:" + string(d.response[start:end]))
+			idx = bytes.Index(header, []byte("Content-type: "))
+			if 0 <= idx {
+				_, err := fmt.Sscanf(string(header[idx+14:]), "%s", &contentType)
+				if err != nil {
+					return nil, err
+				}
+				response.Header.ContentType = contentType
 			}
 
-			// if "unknown command" then the command failed
-			if strings.Contains(string(d.response[:end]), "\r\nunknown command ") {
-				return d.response[start:end], errors.New("response error:" + string(d.response[start:end]))
+			//fmt.Printf("-- (%s)\r\n%s\r\n--\r\n", response.Header.ContentType, string(header))
+
+		case stIpdHeader2:
+			if end-start < 7 {
+				fmt.Printf("stIpdHeader2: %d %d\r\n", end, start)
+				state--
+				copy(d.response, d.response[start:end])
+				end = end - start
+				start = 0
+				wp = end
+				fmt.Printf("stIpdHeader2= %q\r\n", d.response[start:end])
+				fmt.Printf("stIpdHeader2* %d %d\r\n", end, start)
+				continue
+			} else if !bytes.HasPrefix(d.response[start:end], []byte("\r\n+IPD,")) {
+				return nil, errors.New("err2")
+			}
+			idx := bytes.IndexByte(d.response[start:end], byte(':'))
+			if idx < 0 {
+				state--
+				continue
 			}
 
-			// if anything else, then keep reading data in?
-			state = stRead
-			start = end
+			fmt.Printf("-- %q\r\n", string(d.response[start:start+idx+1]))
+			s := bytes.Split(d.response[start:start+idx], []byte(","))
+			// ch,len,IP,port
+			l, err := strconv.ParseUint(string(s[2]), 10, 0)
+			if err != nil {
+				return nil, err
+			}
+			ipdLen = int(l)
+
+			start += idx + 1
+			state = stIpdBody2
+
+		case stIpdBody2:
+			// HTTP body
+			if response.Header.ContentType == "application/octet-stream" {
+				fmt.Printf("-- (%s)\r\n%#v\r\n--\r\n", response.Header.ContentType, d.response[start:end])
+			} else {
+				fmt.Printf("-- (%s)\r\n%s\r\n--\r\n", response.Header.ContentType, string(d.response[start:end]))
+			}
+			//dump()
+			if ipdLen < end-start {
+				start += ipdLen
+				contentRemain -= ipdLen
+				ipdLen = 0
+				state = stIpdHeader2
+			} else if ipdLen == end-start {
+				start = end
+				contentRemain -= ipdLen
+				ipdLen = 0
+				state = stIpdHeader2
+			} else {
+				//fmt.Printf("== stIpdBody2 ipdLen %d : end %d : start %d\r\n", ipdLen, end, start)
+				contentRemain -= end - start
+				ipdLen -= end - start
+				start = end
+			}
+
 		default:
+		}
+
+		if 0 < contentLength && contentRemain == 0 {
+			return nil, nil
+		}
+
+		if start == end {
+			start = 0
+			end = 0
+			wp = 0
+			if state != stRead1 {
+				state--
+			}
 		}
 
 	}
