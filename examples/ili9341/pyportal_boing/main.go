@@ -4,7 +4,6 @@ package main
 
 import (
 	"device/sam"
-	"fmt"
 	"machine"
 	"time"
 
@@ -13,6 +12,7 @@ import (
 )
 
 const (
+	// invert RGB565
 	BGCOLOR    = 0x75AD
 	GRIDCOLOR  = 0x15A8
 	BGSHADOW   = 0x8552
@@ -77,8 +77,6 @@ func main() {
 	balloldx = ballx
 	balloldy = bally // Prior ball position
 
-	//xi := 0
-
 	machine.LCD_SS_PIN.Low()
 	machine.SPI3.Bus.CTRLB.ClearBits(sam.SERCOM_SPIS_CTRLB_RXEN)
 	for {
@@ -135,10 +133,8 @@ func main() {
 			// This makes the ball spin
 			for i := 0; i < 14; i++ {
 				if (int(ballframe)+i)%14 < 7 {
-					palette[i+2] = WHITE
 					paletteCache[idx][i+2] = WHITE
 				} else {
-					palette[i+2] = RED
 					paletteCache[idx][i+2] = RED
 				} // Palette entries 0 and 1 aren't used (clear and shadow, respectively)
 			}
@@ -149,48 +145,18 @@ func main() {
 		bx := minx - int16(ballx) // X relative to ball bitmap (can be negative)
 		by := miny - int16(bally) // Y relative to ball bitmap (can be negative)
 
-		//fmt.Printf("h+w : %d+%d\r\n", height, width)
-		if false {
-			fmt.Printf("vx\t%f\tbx\t%d\tballx\t%d\tvy\t%f\tby\t%d\tbally\t%d\tw\t%d\th\t%d\r\n", ballvx, bx, int16(ballx), ballvy, by, int16(bally), width, height)
-		}
-		if false {
-			fmt.Printf("vx\t%f\tbx\t%d\tballx\t%d\r\n", ballvx, bx, int16(ballx))
-		}
-
-		//for y := 0; y < int(height); y++ { // For each row...
-		//	for x := 0; x < int(width); x++ {
-		//		if graphics.Background[int(miny)+y][int(minx)+x] != 0 {
-		//			c = GRIDSHADOW
-		//		} else {
-		//			c = BGCOLOR
-		//		}
-		//		frameBuffer[fi][y*int(width)+x] = c
-		//	}
-		//}
-
-		//xm = xmap[xi]
 		if 0 < ballvx {
 			// to right
 			for y := 0; y < int(height); y++ { // For each row...
 				for x := 0; x < -int(bx); x++ {
-					if graphics.Background[int(miny)+y][int(minx)+x] != 0 {
-						c = GRIDSHADOW
-					} else {
-						c = BGSHADOW
-					}
-					frameBuffer[fi][y*int(width)+x] = c
+					frameBuffer[fi][y*int(width)+x] = graphics.Background[int(miny)+y][int(minx)+x]
 				}
 			}
 		} else {
 			// to left
 			for y := 0; y < int(height); y++ { // For each row...
 				for x := graphics.BALLWIDTH; x < int(width); x++ {
-					if graphics.Background[int(miny)+y][int(minx)+x] != 0 {
-						c = GRIDSHADOW
-					} else {
-						c = BGSHADOW
-					}
-					frameBuffer[fi][y*int(width)+x] = c
+					frameBuffer[fi][y*int(width)+x] = graphics.Background[int(miny)+y][int(minx)+x]
 				}
 			}
 		}
@@ -198,23 +164,13 @@ func main() {
 		if 0 < ballvy {
 			for y := 0; y < -int(by); y++ { // For each row...
 				for x := 0; x < int(width); x++ {
-					if graphics.Background[int(miny)+y][int(minx)+x] != 0 {
-						c = GRIDSHADOW
-					} else {
-						c = BGSHADOW
-					}
-					frameBuffer[fi][y*int(width)+x] = c
+					frameBuffer[fi][y*int(width)+x] = graphics.Background[int(miny)+y][int(minx)+x]
 				}
 			}
 		} else {
 			for y := graphics.BALLHEIGHT; y < int(height); y++ { // For each row...
 				for x := 0; x < int(width); x++ {
-					if graphics.Background[int(miny)+y][int(minx)+x] != 0 {
-						c = GRIDSHADOW
-					} else {
-						c = BGSHADOW
-					}
-					frameBuffer[fi][y*int(width)+x] = c
+					frameBuffer[fi][y*int(width)+x] = graphics.Background[int(miny)+y][int(minx)+x]
 				}
 			}
 		}
@@ -222,23 +178,21 @@ func main() {
 		//height = graphics.BALLHEIGHT
 		//width = graphics.BALLWIDTH
 
+		palette = paletteCache[idx]
 		for y := 0; y < int(graphics.BALLHEIGHT); y++ { // For each row...
 			for x := 0; x < int(graphics.BALLWIDTH); x++ {
 				c = uint16(graphics.Ball[int(y)*int(graphics.BALLWIDTH)+int(x)])
 				if c == 0 { // Outside ball - just draw grid
-					if graphics.Background[int(bally)+y][int(ballx)+x] != 0 {
-						c = GRIDCOLOR
-					} else {
-						c = BGCOLOR
-					}
+					c = graphics.Background[int(bally)+y][int(ballx)+x]
 				} else if c > 1 { // In ball area...
-					c = paletteCache[idx][c]
+					c = palette[c]
 				} else { // In shadow area...
-					if graphics.Background[int(bally)+y][int(ballx)+x] != 0 {
-						c = GRIDSHADOW
-					} else {
-						c = BGSHADOW
-					}
+					//if graphics.Background[int(bally)+y][int(ballx)+x] != BGCOLOR {
+					//	c = GRIDSHADOW
+					//} else {
+					//	c = BGSHADOW
+					//}
+					c = graphics.BackgroundShadow[int(bally)+y][int(ballx)+x]
 				}
 				//frameBuffer[fi][(y+int(by))*int(width)+(x+int(bx))] = c
 				frameBuffer[fi][(y-int(by))*int(width)+(x-int(bx))] = c
@@ -281,16 +235,10 @@ func main() {
 
 func DrawBackground() {
 	w, h := display.Size()
-	var b uint8
 
 	for j := int16(0); j < h; j++ {
 		for k := int16(0); k < w; k++ {
-			b = graphics.Background[j][k]
-			if b == 0 {
-				frameBuffer[0][k] = BGCOLOR
-			} else {
-				frameBuffer[0][k] = GRIDCOLOR
-			}
+			frameBuffer[0][k] = graphics.Background[j][k]
 		}
 		display.DrawRGBBitmap(0, j, frameBuffer[0][0:w], w, 1)
 	}

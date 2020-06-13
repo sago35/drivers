@@ -284,8 +284,8 @@ func (pd *spiDriver) write16sldma(data []uint16) {
 		//ch.CHINTFLAG.SetBits(sam.DMAC_CHANNEL_CHINTFLAG_TCMPL)
 		//pd.DmaSend(buf)
 		pd.DmaSend16(data)
-		for !pd.bus.Bus.INTFLAG.HasBits(sam.SERCOM_SPIM_INTFLAG_TXC) {
-		}
+		//for !pd.bus.Bus.INTFLAG.HasBits(sam.SERCOM_SPIM_INTFLAG_TXC) {
+		//}
 		//time.Sleep(20 * time.Millisecond)
 
 		//for ch.CHSTATUS.HasBits(sam.DMAC_CHANNEL_CHSTATUS_BUSY) {
