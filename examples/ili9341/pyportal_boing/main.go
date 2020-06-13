@@ -4,6 +4,7 @@ package main
 
 import (
 	"device/sam"
+	"fmt"
 	"machine"
 	"time"
 
@@ -26,7 +27,8 @@ const (
 )
 
 var (
-	frameBuffer = [(graphics.BALLHEIGHT + 8) * (graphics.BALLWIDTH + 8)]uint16{}
+	frameBuffer = [2][(graphics.BALLHEIGHT + 8) * (graphics.BALLWIDTH + 8)]uint16{}
+	fi          = 0
 
 	startTime int64
 	frame     int64
@@ -42,7 +44,10 @@ var (
 	balloldy  float32
 
 	// Color table for ball rotation effect
-	palette [16]uint16
+	palette      [16]uint16
+	paletteCache [36][16]uint16
+	cached       = false
+	idx          = 0
 )
 
 func main() {
@@ -71,6 +76,8 @@ func main() {
 	ballframe = 3    // Ball animation frame #
 	balloldx = ballx
 	balloldy = bally // Prior ball position
+
+	//xi := 0
 
 	machine.LCD_SS_PIN.Low()
 	machine.SPI3.Bus.CTRLB.ClearBits(sam.SERCOM_SPIS_CTRLB_RXEN)
@@ -115,115 +122,168 @@ func main() {
 		width = maxx - minx + 1
 		height = maxy - miny + 1
 
-		// Ball animation frame # is incremented opposite the ball's X velocity
-		ballframe -= ballvx * 0.5
-		if ballframe < 0 {
-			ballframe += 14 // Constrain from 0 to 13
-		} else if ballframe >= 14 {
-			ballframe -= 14
-		}
+		if !cached {
+			// Ball animation frame # is incremented opposite the ball's X velocity
+			ballframe -= ballvx * 0.5
+			if ballframe < 0 {
+				ballframe += 14 // Constrain from 0 to 13
+			} else if ballframe >= 14 {
+				ballframe -= 14
+			}
 
-		// Set 7 palette entries to white, 7 to red, based on frame number.
-		// This makes the ball spin
-		for i := 0; i < 14; i++ {
-			if (int(ballframe)+i)%14 < 7 {
-				palette[i+2] = WHITE
-			} else {
-				palette[i+2] = RED
-			} // Palette entries 0 and 1 aren't used (clear and shadow, respectively)
+			// Set 7 palette entries to white, 7 to red, based on frame number.
+			// This makes the ball spin
+			for i := 0; i < 14; i++ {
+				if (int(ballframe)+i)%14 < 7 {
+					palette[i+2] = WHITE
+					paletteCache[idx][i+2] = WHITE
+				} else {
+					palette[i+2] = RED
+					paletteCache[idx][i+2] = RED
+				} // Palette entries 0 and 1 aren't used (clear and shadow, respectively)
+			}
 		}
 
 		// Only the changed rectangle is drawn into the 'renderbuf' array...
 		var c uint16              //, *destPtr;
 		bx := minx - int16(ballx) // X relative to ball bitmap (can be negative)
 		by := miny - int16(bally) // Y relative to ball bitmap (can be negative)
-		bgx := minx               // X relative to background bitmap (>= 0)
-		bgy := miny               // Y relative to background bitmap (>= 0)
-		var bx1, bgx1 int16       // Loop counters and working vars
-		var p uint8               // 'packed' value of 2 ball pixels
-		var bufIdx int8 = 0
 
-		//tft.setAddrWindow(minx, miny, width, height)
+		//fmt.Printf("h+w : %d+%d\r\n", height, width)
+		if false {
+			fmt.Printf("vx\t%f\tbx\t%d\tballx\t%d\tvy\t%f\tby\t%d\tbally\t%d\tw\t%d\th\t%d\r\n", ballvx, bx, int16(ballx), ballvy, by, int16(bally), width, height)
+		}
+		if false {
+			fmt.Printf("vx\t%f\tbx\t%d\tballx\t%d\r\n", ballvx, bx, int16(ballx))
+		}
 
-		for y := 0; y < int(height); y++ { // For each row...
-			//destPtr = &renderbuf[bufIdx][0];
-			bx1 = bx   // Need to keep the original bx and bgx values,
-			bgx1 = bgx // so copies of them are made here (and changed in loop below)
-			for x := 0; x < int(width); x++ {
-				var bgidx = int(bgy)*(graphics.SCREENWIDTH/8) + int(bgx1/8)
-				if (bx1 >= 0) && (bx1 < graphics.BALLWIDTH) && // Is current pixel row/column
-					(by >= 0) && (by < graphics.BALLHEIGHT) { // inside the ball bitmap area?
-					// Yes, do ball compositing math...
-					p = graphics.Ball[int(by*(graphics.BALLWIDTH/2))+int(bx1/2)] // Get packed value (2 pixels)
-					if (bx1 & 1) != 0 {
-						c = uint16(p & 0xF)
+		//for y := 0; y < int(height); y++ { // For each row...
+		//	for x := 0; x < int(width); x++ {
+		//		if graphics.Background[int(miny)+y][int(minx)+x] != 0 {
+		//			c = GRIDSHADOW
+		//		} else {
+		//			c = BGCOLOR
+		//		}
+		//		frameBuffer[fi][y*int(width)+x] = c
+		//	}
+		//}
+
+		//xm = xmap[xi]
+		if 0 < ballvx {
+			// to right
+			for y := 0; y < int(height); y++ { // For each row...
+				for x := 0; x < -int(bx); x++ {
+					if graphics.Background[int(miny)+y][int(minx)+x] != 0 {
+						c = GRIDSHADOW
 					} else {
-						c = uint16(p >> 4)
-					} // Unpack high or low nybble
-					if c == 0 { // Outside ball - just draw grid
-						if graphics.Background[bgidx]&(0x80>>(bgx1&7)) != 0 {
-							c = GRIDCOLOR
-						} else {
-							c = BGCOLOR
-						}
-					} else if c > 1 { // In ball area...
-						c = palette[c]
-					} else { // In shadow area...
-						if graphics.Background[bgidx]&(0x80>>(bgx1&7)) != 0 {
-							c = GRIDSHADOW
-						} else {
-							c = BGSHADOW
-						}
+						c = BGSHADOW
 					}
-				} else { // Outside ball bitmap, just draw background bitmap...
-					if graphics.Background[bgidx]&(0x80>>(bgx1&7)) != 0 {
+					frameBuffer[fi][y*int(width)+x] = c
+				}
+			}
+		} else {
+			// to left
+			for y := 0; y < int(height); y++ { // For each row...
+				for x := graphics.BALLWIDTH; x < int(width); x++ {
+					if graphics.Background[int(miny)+y][int(minx)+x] != 0 {
+						c = GRIDSHADOW
+					} else {
+						c = BGSHADOW
+					}
+					frameBuffer[fi][y*int(width)+x] = c
+				}
+			}
+		}
+
+		if 0 < ballvy {
+			for y := 0; y < -int(by); y++ { // For each row...
+				for x := 0; x < int(width); x++ {
+					if graphics.Background[int(miny)+y][int(minx)+x] != 0 {
+						c = GRIDSHADOW
+					} else {
+						c = BGSHADOW
+					}
+					frameBuffer[fi][y*int(width)+x] = c
+				}
+			}
+		} else {
+			for y := graphics.BALLHEIGHT; y < int(height); y++ { // For each row...
+				for x := 0; x < int(width); x++ {
+					if graphics.Background[int(miny)+y][int(minx)+x] != 0 {
+						c = GRIDSHADOW
+					} else {
+						c = BGSHADOW
+					}
+					frameBuffer[fi][y*int(width)+x] = c
+				}
+			}
+		}
+
+		//height = graphics.BALLHEIGHT
+		//width = graphics.BALLWIDTH
+
+		for y := 0; y < int(graphics.BALLHEIGHT); y++ { // For each row...
+			for x := 0; x < int(graphics.BALLWIDTH); x++ {
+				c = uint16(graphics.Ball[int(y)*int(graphics.BALLWIDTH)+int(x)])
+				if c == 0 { // Outside ball - just draw grid
+					if graphics.Background[int(bally)+y][int(ballx)+x] != 0 {
 						c = GRIDCOLOR
 					} else {
 						c = BGCOLOR
 					}
+				} else if c > 1 { // In ball area...
+					c = paletteCache[idx][c]
+				} else { // In shadow area...
+					if graphics.Background[int(bally)+y][int(ballx)+x] != 0 {
+						c = GRIDSHADOW
+					} else {
+						c = BGSHADOW
+					}
 				}
-				frameBuffer[y*int(width)+x] = c
-				bx1++ // Increment bitmap position counters (X axis)
-				bgx1++
+				//frameBuffer[fi][(y+int(by))*int(width)+(x+int(bx))] = c
+				frameBuffer[fi][(y-int(by))*int(width)+(x-int(bx))] = c
 			}
-			//tft.dmaWait(); // Wait for prior line to complete
-			//tft.writePixels(&renderbuf[bufIdx][0], width, false); // Non-blocking write
-			bufIdx = 1 - bufIdx
-			by++ // Increment bitmap position counters (Y axis)
-			bgy++
 		}
 
-		//display.DrawRGBBitmap(minx, miny, frameBuffer[:width*height], width, height)
-		display.DrawRGBBitmapDMA(minx, miny, frameBuffer[:width*height], width, height)
+		//display.DrawRGBBitmap(minx, miny, frameBuffer[fi][:width*height], width, height)
+		display.DrawRGBBitmapDMA(minx, miny, frameBuffer[fi][:width*height], width, height)
+		//time.Sleep(100 * time.Millisecond)
+		//display.DrawRGBBitmapDMA(int16(ballx), int16(bally), frameBuffer[fi][:width*height], width, height)
+		fi = 1 - fi
 
 		// Show approximate frame rate
 		frame++
-		if frame&0xFF == 0 { // Every 256 frames...
+		if frame&0x1FF == 0 { // Every 256 frames...
 			elapsed := (time.Now().UnixNano() - startTime) / int64(time.Second)
 			if elapsed > 0 {
-				println(frame/elapsed, " fps")
+				if true {
+					println(frame/elapsed, " fps")
+				}
 			}
 		}
+
+		idx++
+		if idx == 36 {
+			idx = 0
+			cached = true
+		}
+
 	}
 }
 
 func DrawBackground() {
 	w, h := display.Size()
-	byteWidth := (w + 7) / 8 // Bitmap scanline pad = whole byte
 	var b uint8
+
 	for j := int16(0); j < h; j++ {
 		for k := int16(0); k < w; k++ {
-			if k&7 > 0 {
-				b <<= 1
+			b = graphics.Background[j][k]
+			if b == 0 {
+				frameBuffer[0][k] = BGCOLOR
 			} else {
-				b = graphics.Background[j*byteWidth+k/8]
-			}
-			if b&0x80 == 0 {
-				frameBuffer[k] = BGCOLOR
-			} else {
-				frameBuffer[k] = GRIDCOLOR
+				frameBuffer[0][k] = GRIDCOLOR
 			}
 		}
-		display.DrawRGBBitmap(0, j, frameBuffer[0:w], w, 1)
+		display.DrawRGBBitmap(0, j, frameBuffer[0][0:w], w, 1)
 	}
 }

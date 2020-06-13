@@ -312,16 +312,18 @@ func (d *Device) sendCommand(cmd byte, data []byte) {
 }
 
 func (d *Device) sendCommand2(cmd byte, data []byte) {
-	for !machine.SPI3.Bus.INTFLAG.HasBits(sam.SERCOM_SPIS_INTFLAG_TXC) {
+	for !machine.SPI3.Bus.INTFLAG.HasBits(sam.SERCOM_SPIM_INTFLAG_TXC) {
 	}
 	d.dc.Low()
 	//d.driver.write82(cmd)
 	machine.SPI3.Bus.DATA.Set(uint32(cmd))
-	for !machine.SPI3.Bus.INTFLAG.HasBits(sam.SERCOM_SPIS_INTFLAG_TXC) {
+	for !machine.SPI3.Bus.INTFLAG.HasBits(sam.SERCOM_SPIM_INTFLAG_TXC) {
 	}
 	d.dc.High()
 	if data != nil {
 		d.driver.write8sl2(data)
+		for !machine.SPI3.Bus.INTFLAG.HasBits(sam.SERCOM_SPIM_INTFLAG_TXC) {
+		}
 	}
 }
 
