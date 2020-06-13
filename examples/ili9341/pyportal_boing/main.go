@@ -175,9 +175,6 @@ func main() {
 			}
 		}
 
-		//height = graphics.BALLHEIGHT
-		//width = graphics.BALLWIDTH
-
 		palette = paletteCache[idx]
 		for y := 0; y < int(graphics.BALLHEIGHT); y++ { // For each row...
 			for x := 0; x < int(graphics.BALLWIDTH); x++ {
@@ -187,14 +184,8 @@ func main() {
 				} else if c > 1 { // In ball area...
 					c = palette[c]
 				} else { // In shadow area...
-					//if graphics.Background[int(bally)+y][int(ballx)+x] != BGCOLOR {
-					//	c = GRIDSHADOW
-					//} else {
-					//	c = BGSHADOW
-					//}
 					c = graphics.BackgroundShadow[int(bally)+y][int(ballx)+x]
 				}
-				//frameBuffer[fi][(y+int(by))*int(width)+(x+int(bx))] = c
 				frameBuffer[fi][(y-int(by))*int(width)+(x-int(bx))] = c
 			}
 		}
