@@ -15,8 +15,7 @@ import (
 	"machine"
 	"time"
 
-	"github.com/tinygo-org/drivers/rtl8720dn"
-	"tinygo.org/x/drivers/espat"
+	"tinygo.org/x/drivers/rtl8720dn"
 )
 
 // change actAsAP to true to act as an access point instead of connecting to one.
@@ -33,8 +32,7 @@ var (
 	tx   = machine.PA22
 	rx   = machine.PA23
 
-	adaptorE *espat.Device
-	console  = machine.UART0
+	console = machine.UART0
 
 	spi     machine.SPI
 	adaptor *rtl8720dn.Device
@@ -198,12 +196,12 @@ func connectToESP() bool {
 func connectToAP() {
 	println("Connecting to wifi network '" + ssid + "'")
 
-	err := adaptor.SetWifiMode(espat.WifiModeClient)
+	err := adaptor.SetWifiMode(rtl8720dn.WifiModeClient)
 	if err != nil {
 		failMessage(err.Error())
 	}
 
-	err = adaptor.ConnectToAP(ssid, pass, 20)
+	err = adaptor.ConnectToAP(ssid, pass, 40)
 	if err != nil {
 		failMessage(err.Error())
 	}
