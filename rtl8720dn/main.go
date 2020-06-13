@@ -57,6 +57,17 @@ func (d *Device) spi_transfer16_cs(data uint16) uint16 {
 	return r
 }
 
+func (d *Device) spi_transfer(b byte) byte {
+	v, _ := d.bus.Transfer(b)
+	return v
+}
+
+func (d *Device) spi_transfer16(data uint16) uint16 {
+	r := uint16(d.spi_transfer(uint8(data>>8))) << 8
+	r |= uint16(d.spi_transfer(uint8(data) & 0xFF))
+	return r
+}
+
 func (d *Device) at_wait_io(b bool) error {
 	// TODO: 引数は後で考える
 	for i := 0; i < 500; i++ {
@@ -96,7 +107,7 @@ func (d *Device) at_spi_write(buf []byte) (int, error) {
 	/* wait slave ready to transfer data */
 	err := d.at_wait_io(SPI_STATE_MISO)
 	if err != nil {
-		fmt.Printf("%s\r\n", err.Error())
+		fmt.Printf("w1 %s\r\n", err.Error())
 	}
 
 	v := d.spi_transfer_cs(SPT_TAG_DMY)
@@ -112,13 +123,23 @@ func (d *Device) at_spi_write(buf []byte) (int, error) {
 
 	l := d.spi_transfer16_cs((SPT_TAG_DMY << 8) | SPT_TAG_DMY)
 
-	d.at_wait_io(SPI_STATE_MOSI)
-	// TODO: l or buflen?
-	for i := uint16(0); i < l; i++ {
-		d.spi_transfer_cs(buf[i])
+	err = d.at_wait_io(SPI_STATE_MOSI)
+	if err != nil {
+		fmt.Printf("w2 %s\r\n", err.Error())
 	}
 
-	d.at_wait_io(SPI_STATE_MOSI)
+	// TODO: l or buflen?
+	d.csPin.Low()
+	for i := uint16(0); i < l; i++ {
+		d.spi_transfer(buf[i])
+	}
+	d.csPin.High()
+
+	err = d.at_wait_io(SPI_STATE_MOSI)
+	if err != nil {
+		fmt.Printf("w3 %s\r\n", err.Error())
+	}
+
 	/*
 	  Serial.print("Trans ");
 	  Serial.print(l);
@@ -141,7 +162,11 @@ func (d *Device) at_spi_read(buf []byte) (int, error) {
 	d.spi_transfer16_cs(uint16(len(buf)))
 
 	/* wait slave ready to transfer data */
-	d.at_wait_io(SPI_STATE_MISO)
+	err := d.at_wait_io(SPI_STATE_MISO)
+	if err != nil {
+		fmt.Printf("r1 %s\r\n", err.Error())
+	}
+
 	v := d.spi_transfer_cs(SPT_TAG_DMY)
 	if v != SPT_TAG_ACK {
 		/* device too slow between TAG_PRE and TAG_ACK */
@@ -155,18 +180,30 @@ func (d *Device) at_spi_read(buf []byte) (int, error) {
 
 	l := d.spi_transfer16_cs((SPT_TAG_DMY << 8) | SPT_TAG_DMY)
 
-	d.at_wait_io(SPI_STATE_MOSI)
+	err = d.at_wait_io(SPI_STATE_MOSI)
+	if err != nil {
+		fmt.Printf("r2 %s\r\n", err.Error())
+	}
 
 	if l > 0 {
-		d.at_wait_io(SPI_STATE_MISO)
-
-		for i := uint16(0); i < l; i++ {
-			buf[i] = d.spi_transfer_cs(SPT_TAG_DMY)
+		err = d.at_wait_io(SPI_STATE_MISO)
+		if err != nil {
+			fmt.Printf("r3 %s\r\n", err.Error())
 		}
+
+		d.csPin.Low()
+		for i := uint16(0); i < l; i++ {
+			buf[i] = d.spi_transfer(SPT_TAG_DMY)
+		}
+		d.csPin.High()
 		/* success transfer l bytes */
 		r = int(l)
 
-		d.at_wait_io(SPI_STATE_MOSI)
+		err = d.at_wait_io(SPI_STATE_MOSI)
+		if err != nil {
+			fmt.Printf("r4 %s\r\n", err.Error())
+		}
+
 	}
 
 	return r, nil
