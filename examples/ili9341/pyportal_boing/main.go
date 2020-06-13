@@ -262,10 +262,18 @@ func main() {
 			}
 		}
 
-		idx++
-		if idx == 36 {
-			idx = 0
-			cached = true
+		if 0 < ballvx {
+			idx++
+			if idx == 36 {
+				idx = 0
+				cached = true
+			}
+		} else {
+			if 0 < idx {
+				idx--
+			} else {
+				idx = 35
+			}
 		}
 
 	}
