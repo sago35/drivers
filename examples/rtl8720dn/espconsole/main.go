@@ -42,7 +42,6 @@ var (
 	csPin     machine.Pin
 	uartRxPin machine.Pin
 
-	s_buf    = [2][2048]byte{}
 	response = make([]byte, 10*1024)
 	req      = make([]byte, 1024)
 	reqIdx   = 0
