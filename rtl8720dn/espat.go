@@ -208,7 +208,7 @@ func (d *Device) Response(timeout int) ([]byte, error) {
 	// read data
 	var size int
 	var start, end int
-	pause := 100 // pause to wait for 100 ms
+	pause := 5 // pause to wait for 100 ms
 	retries := timeout / pause
 
 	var err error
@@ -302,13 +302,15 @@ func (d *Device) ParseCIPSEND(b []byte) (int, int, error) {
 	return ch, length, err
 }
 
-func dump(start, end, contentRemain, contentLength, ipdLen int, res []byte) {
+type STATE int
+
+func dump(state STATE, start, end, contentRemain, contentLength, ipdLen int, res []byte) {
 	if len(res) == 0 {
 		// skip
-		//} else if 64 < len(res) {
-		//	fmt.Printf("-- %d %d %q...\r\n", start, end, res[:61])
+	} else if 64 < len(res) {
+		fmt.Printf("-- %d %d %d/%d %d %q...\r\n", start, end, contentRemain, contentLength, ipdLen, res[:61])
 	} else {
-		fmt.Printf("-- %d %d %d/%d %d %q\r\n", start, end, contentRemain, contentLength, ipdLen, res)
+		fmt.Printf("-- %d %d %d %d/%d %d %q\r\n", state, start, end, contentRemain, contentLength, ipdLen, res)
 	}
 }
 
@@ -318,10 +320,9 @@ func (d *Device) ResponseIPD(timeout int) ([]byte, error) {
 	// read data
 	var size int
 	var start, end, wp int
-	pause := 500 // pause to wait for 100 ms
+	pause := 5 // pause to wait for 100 ms
 	retries := timeout / pause
 
-	type STATE int
 	const (
 		stRead1 STATE = iota
 		stIPSENDRes
@@ -346,9 +347,9 @@ func (d *Device) ResponseIPD(timeout int) ([]byte, error) {
 	var contentType string
 	var contentRemain int
 
-	sum := 0
+	//sum := 0
 	for {
-		dump(start, end, contentRemain, contentLength, ipdLen, d.response[start:end])
+		//dump(state, start, end, contentRemain, contentLength, ipdLen, d.response[start:end])
 		switch state {
 		case stRead1, stRead2, stRead3, stRead4, stRead5, stRead6:
 			size, err = d.at_spi_read(d.response[wp:])
@@ -361,14 +362,14 @@ func (d *Device) ResponseIPD(timeout int) ([]byte, error) {
 				state++
 
 				if false {
-					// TODO: for debug
-					//fmt.Printf("%q\r\n", string(d.response[start:end]))
-					sum += end - start
-					fmt.Printf("[[%d]]%q\r\n", sum, string(d.response[start:end]))
-					start = 0
-					end = 0
-					state--
-					continue
+					//// TODO: for debug
+					////fmt.Printf("%q\r\n", string(d.response[start:end]))
+					//sum += end - start
+					//fmt.Printf("[[%d]]%q\r\n", sum, string(d.response[start:end]))
+					//start = 0
+					//end = 0
+					//state--
+					//continue
 				}
 			} else if size < 0 {
 				return nil, errors.New("err1")
@@ -435,6 +436,10 @@ func (d *Device) ResponseIPD(timeout int) ([]byte, error) {
 			start += endOfHeader
 			ipdLen -= endOfHeader
 			state = stIpdHeader2
+			wp = end
+			if 0 < ipdLen {
+				state = stIpdBody2
+			}
 
 			idx := bytes.Index(header, []byte("Content-Length: "))
 			if 0 <= idx {
@@ -459,17 +464,17 @@ func (d *Device) ResponseIPD(timeout int) ([]byte, error) {
 
 		case stIpdHeader2:
 			if end-start < 7 {
-				fmt.Printf("stIpdHeader2: %d %d\r\n", end, start)
+				//fmt.Printf("stIpdHeader2: %d %d\r\n", end, start)
 				state--
 				copy(d.response, d.response[start:end])
 				end = end - start
 				start = 0
 				wp = end
-				fmt.Printf("stIpdHeader2= %q\r\n", d.response[start:end])
-				fmt.Printf("stIpdHeader2* %d %d\r\n", end, start)
+				//fmt.Printf("stIpdHeader2= %q\r\n", d.response[start:end])
+				//fmt.Printf("stIpdHeader2* %d %d\r\n", end, start)
 				continue
 			} else if !bytes.HasPrefix(d.response[start:end], []byte("\r\n+IPD,")) {
-				return nil, errors.New("err2")
+				return nil, errors.New("err3")
 			}
 			idx := bytes.IndexByte(d.response[start:end], byte(':'))
 			if idx < 0 {
@@ -491,11 +496,12 @@ func (d *Device) ResponseIPD(timeout int) ([]byte, error) {
 
 		case stIpdBody2:
 			// HTTP body
-			if response.Header.ContentType == "application/octet-stream" {
-				fmt.Printf("-- (%s)\r\n%#v\r\n--\r\n", response.Header.ContentType, d.response[start:end])
-			} else {
-				fmt.Printf("-- (%s)\r\n%s\r\n--\r\n", response.Header.ContentType, string(d.response[start:end]))
-			}
+			//fmt.Printf("-- stIpdBody2 %d\r\n", end-start)
+			//if response.Header.ContentType == "application/octet-stream" {
+			//	fmt.Printf("-- (%s)\r\n%#v\r\n--\r\n", response.Header.ContentType, d.response[start:end])
+			//} else {
+			//	fmt.Printf("-- (%s)\r\n%s\r\n--\r\n", response.Header.ContentType, string(d.response[start:end]))
+			//}
 			//dump()
 			if ipdLen < end-start {
 				start += ipdLen
