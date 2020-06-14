@@ -20,7 +20,6 @@ package rtl8720dn
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"machine"
 	"strconv"
@@ -243,12 +242,12 @@ func (d *Device) Response(timeout int) ([]byte, error) {
 
 			// if "Error" then the command failed
 			if strings.Contains(string(d.response[:end]), "ERROR") {
-				return d.response[start:end], errors.New("response error:" + string(d.response[start:end]))
+				return d.response[start:end], fmt.Errorf("response error:" + string(d.response[start:end]))
 			}
 
 			// if "unknown command" then the command failed
 			if strings.Contains(string(d.response[:end]), "\r\nunknown command ") {
-				return d.response[start:end], errors.New("response error:" + string(d.response[start:end]))
+				return d.response[start:end], fmt.Errorf("response error:" + string(d.response[start:end]))
 			}
 
 			// if anything else, then keep reading data in?
@@ -258,7 +257,7 @@ func (d *Device) Response(timeout int) ([]byte, error) {
 		// wait longer?
 		retries--
 		if retries == 0 {
-			return nil, errors.New("response timeout error:" + string(d.response[start:end]))
+			return nil, fmt.Errorf("response timeout error:" + string(d.response[start:end]))
 		}
 
 		time.Sleep(time.Duration(pause) * time.Millisecond)
@@ -304,6 +303,21 @@ func (d *Device) ParseCIPSEND(b []byte) (int, int, error) {
 
 type STATE int
 
+const (
+	stRead1 STATE = iota
+	stIPSENDRes
+	stRead2
+	stIpdHeader1
+	stRead3
+	stIpdBody1
+	stRead4
+	stIpdHeader2
+	stRead5
+	stIpdBody2
+	stRead6
+	stMain
+)
+
 func dump(state STATE, start, end, contentRemain, contentLength, ipdLen int, res []byte) {
 	if len(res) == 0 {
 		// skip
@@ -316,27 +330,12 @@ func dump(state STATE, start, end, contentRemain, contentLength, ipdLen int, res
 
 // ResponseIPD gets the next response bytes from the ESP8266/ESP32.
 // The call will retry for up to timeout milliseconds before returning nothing.
-func (d *Device) ResponseIPD(timeout int) ([]byte, error) {
+func (d *Device) ResponseIPD(timeout int, buf []byte) (int, error) {
 	// read data
 	var size int
 	var start, end, wp int
 	pause := 5 // pause to wait for 100 ms
 	retries := timeout / pause
-
-	const (
-		stRead1 STATE = iota
-		stIPSENDRes
-		stRead2
-		stIpdHeader1
-		stRead3
-		stIpdBody1
-		stRead4
-		stIpdHeader2
-		stRead5
-		stIpdBody2
-		stRead6
-		stMain
-	)
 	state := stRead1
 	ipdLen := int(0)
 
@@ -346,6 +345,7 @@ func (d *Device) ResponseIPD(timeout int) ([]byte, error) {
 	var contentLength int
 	var contentType string
 	var contentRemain int
+	var bufIdx int
 
 	//sum := 0
 	for {
@@ -354,7 +354,7 @@ func (d *Device) ResponseIPD(timeout int) ([]byte, error) {
 		case stRead1, stRead2, stRead3, stRead4, stRead5, stRead6:
 			size, err = d.at_spi_read(d.response[wp:])
 			if err != nil {
-				return nil, err
+				return 0, err
 			}
 			if 0 < size {
 				end += size
@@ -372,12 +372,12 @@ func (d *Device) ResponseIPD(timeout int) ([]byte, error) {
 					//continue
 				}
 			} else if size < 0 {
-				return nil, errors.New("err1")
+				return 0, fmt.Errorf("err1")
 			} else if size == 0 {
 				// wait longer?
 				retries--
 				if retries == 0 {
-					return nil, errors.New("response timeout error:" + string(d.response[start:end]))
+					return 0, fmt.Errorf("response timeout error:" + string(d.response[start:end]))
 				}
 
 				time.Sleep(time.Duration(pause) * time.Millisecond)
@@ -386,7 +386,8 @@ func (d *Device) ResponseIPD(timeout int) ([]byte, error) {
 		case stIPSENDRes:
 			if !bytes.HasPrefix(d.response[start:end], []byte("\r\nSEND OK\r\n")) {
 				// error?
-				return d.response[start:end], nil
+				//return d.response[start:end], nil
+				return 0, nil
 			}
 
 			start += len([]byte("\r\nSEND OK\r\n"))
@@ -401,7 +402,7 @@ func (d *Device) ResponseIPD(timeout int) ([]byte, error) {
 				wp = end
 				continue
 			} else if !bytes.HasPrefix(d.response[start:end], []byte("\r\n+IPD,")) {
-				return nil, errors.New("err2")
+				return 0, fmt.Errorf("err2")
 			}
 			idx := bytes.IndexByte(d.response[start:end], byte(':'))
 			if idx < 0 {
@@ -415,7 +416,7 @@ func (d *Device) ResponseIPD(timeout int) ([]byte, error) {
 			// ch,len,IP,port
 			l, err := strconv.ParseUint(string(s[2]), 10, 0)
 			if err != nil {
-				return nil, err
+				return 0, err
 			}
 			ipdLen = int(l)
 
@@ -445,7 +446,7 @@ func (d *Device) ResponseIPD(timeout int) ([]byte, error) {
 			if 0 <= idx {
 				_, err := fmt.Sscanf(string(header[idx+16:]), "%d", &contentLength)
 				if err != nil {
-					return nil, err
+					return 0, err
 				}
 				contentRemain = contentLength
 				response.ContentLength = int64(contentLength)
@@ -455,7 +456,7 @@ func (d *Device) ResponseIPD(timeout int) ([]byte, error) {
 			if 0 <= idx {
 				_, err := fmt.Sscanf(string(header[idx+14:]), "%s", &contentType)
 				if err != nil {
-					return nil, err
+					return 0, err
 				}
 				response.Header.ContentType = contentType
 			}
@@ -474,7 +475,7 @@ func (d *Device) ResponseIPD(timeout int) ([]byte, error) {
 				//fmt.Printf("stIpdHeader2* %d %d\r\n", end, start)
 				continue
 			} else if !bytes.HasPrefix(d.response[start:end], []byte("\r\n+IPD,")) {
-				return nil, errors.New("err3")
+				return 0, fmt.Errorf("err3")
 			}
 			idx := bytes.IndexByte(d.response[start:end], byte(':'))
 			if idx < 0 {
@@ -487,7 +488,7 @@ func (d *Device) ResponseIPD(timeout int) ([]byte, error) {
 			// ch,len,IP,port
 			l, err := strconv.ParseUint(string(s[2]), 10, 0)
 			if err != nil {
-				return nil, err
+				return 0, err
 			}
 			ipdLen = int(l)
 
@@ -497,24 +498,33 @@ func (d *Device) ResponseIPD(timeout int) ([]byte, error) {
 		case stIpdBody2:
 			// HTTP body
 			//fmt.Printf("-- stIpdBody2 %d\r\n", end-start)
-			//if response.Header.ContentType == "application/octet-stream" {
-			//	fmt.Printf("-- (%s)\r\n%#v\r\n--\r\n", response.Header.ContentType, d.response[start:end])
-			//} else {
-			//	fmt.Printf("-- (%s)\r\n%s\r\n--\r\n", response.Header.ContentType, string(d.response[start:end]))
-			//}
+			if response.Header.ContentType == "application/octet-stream" {
+				fmt.Printf("-- (%s)\r\n%#v\r\n--\r\n", response.Header.ContentType, d.response[start:end])
+			} else {
+				fmt.Printf("-- (%s)\r\n%s\r\n--\r\n", response.Header.ContentType, string(d.response[start:end]))
+			}
 			//dump()
 			if ipdLen < end-start {
+				fmt.Printf("$$ 11\r\n")
+				copy(buf[bufIdx:], d.response[start:start+ipdLen])
 				start += ipdLen
 				contentRemain -= ipdLen
 				ipdLen = 0
 				state = stIpdHeader2
+				bufIdx += ipdLen
 			} else if ipdLen == end-start {
+				fmt.Printf("$$ 2222\r\n")
+				copy(buf[bufIdx:], d.response[start:end])
+				bufIdx += end - start
 				start = end
 				contentRemain -= ipdLen
 				ipdLen = 0
 				state = stIpdHeader2
 			} else {
-				//fmt.Printf("== stIpdBody2 ipdLen %d : end %d : start %d\r\n", ipdLen, end, start)
+				fmt.Printf("$$ 33\r\n")
+				copy(buf[bufIdx:], d.response[start:end])
+				fmt.Printf("== stIpdBody2 ipdLen %d : end %d : start %d\r\n", ipdLen, end, start)
+				bufIdx += end - start
 				contentRemain -= end - start
 				ipdLen -= end - start
 				start = end
@@ -524,7 +534,7 @@ func (d *Device) ResponseIPD(timeout int) ([]byte, error) {
 		}
 
 		if 0 < contentLength && contentRemain == 0 {
-			return nil, nil
+			return bufIdx, nil
 		}
 
 		if start == end {
