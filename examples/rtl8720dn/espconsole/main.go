@@ -201,9 +201,15 @@ func connectToAP() {
 		failMessage(err.Error())
 	}
 
-	err = adaptor.ConnectToAP(ssid, pass, 40)
-	if err != nil {
-		failMessage(err.Error())
+	for {
+		err = adaptor.ConnectToAP(ssid, pass, 40)
+		if err != nil {
+			fmt.Printf("%s\r\n", err.Error())
+			//failMessage(err.Error())
+		} else {
+			break
+		}
+		time.Sleep(1 * time.Second)
 	}
 
 	println("Connected.")
