@@ -42,7 +42,10 @@ var (
 	csPin     machine.Pin
 	uartRxPin machine.Pin
 
-	s_buf = [2][2048]byte{}
+	s_buf    = [2][2048]byte{}
+	response = make([]byte, 10*1024)
+	req      = make([]byte, 1024)
+	reqIdx   = 0
 )
 
 func main() {
@@ -75,8 +78,6 @@ func main() {
 	input := make([]byte, 64)
 	i := 0
 
-	req := make([]byte, 1024)
-	reqIdx := 0
 	for {
 		if console.Buffered() > 0 {
 			data, _ := console.ReadByte()
@@ -87,64 +88,10 @@ func main() {
 				console.Write([]byte("\r\n"))
 
 				if bytes.HasPrefix(input[:i], []byte("AT+CIPSEND=")) {
-					ch, length, err := adaptor.ParseCIPSEND(input)
-					fmt.Printf("%d %d %#v\r\n", ch, length, err)
-					// length は無視して、プロンプトを出す
-					// \r\n\r\n が suffix になったら実際の送信を行う
-					for {
-						if console.Buffered() > 0 {
-							data, _ := console.ReadByte()
-							req[reqIdx] = data
-							reqIdx++
-							if data == '\r' {
-								req[reqIdx] = '\n'
-								reqIdx++
-								console.Write([]byte("\r\n"))
-							} else {
-								console.WriteByte(data)
-							}
-							if bytes.HasSuffix(req[:reqIdx], []byte("\r\n\r\n")) {
-								break
-							}
-							time.Sleep(10 * time.Millisecond)
-						}
-					}
-					fmt.Printf("req: %q\r\n", req[:reqIdx])
-					fmt.Printf("len: %d\r\n", len(req[:reqIdx]))
-
-					adaptor.Write([]byte(fmt.Sprintf("AT+CIPSEND=\"%d\",\"%d\"\r\n", ch, reqIdx)))
-
-					// display response
-					fmt.Printf("-- req1\r\n")
-					r, err := adaptor.Response(30000)
+					err := cipsend(input[:i])
 					if err != nil {
 						fmt.Fprintf(console, "%s\r\n", err.Error())
-					} else {
-						console.Write(r)
 					}
-
-					if !bytes.HasSuffix(r, []byte(">")) {
-						r, err := adaptor.Response(30000)
-						if err != nil {
-							fmt.Fprintf(console, "%s\r\n", err.Error())
-						} else {
-							console.Write(r)
-						}
-					}
-
-					adaptor.Write(req[:reqIdx])
-
-					// display response
-					fmt.Printf("-- req2\r\n")
-					r, err = adaptor.ResponseIPD(30000)
-					if err != nil {
-						fmt.Fprintf(console, "%s\r\n", err.Error())
-					} else {
-						console.Write(r)
-					}
-
-					reqIdx = 0
-
 				} else {
 					// send command to ESP8266
 					input[i] = byte('\r')
@@ -174,6 +121,69 @@ func main() {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
+}
+
+func cipsend(input []byte) error {
+	ch, length, err := adaptor.ParseCIPSEND(input)
+	fmt.Printf("%d %d %#v\r\n", ch, length, err)
+	// length は無視して、プロンプトを出す
+	// \r\n\r\n が suffix になったら実際の送信を行う
+	for {
+		if console.Buffered() > 0 {
+			data, _ := console.ReadByte()
+			req[reqIdx] = data
+			reqIdx++
+			if data == '\r' {
+				req[reqIdx] = '\n'
+				reqIdx++
+				console.Write([]byte("\r\n"))
+			} else {
+				console.WriteByte(data)
+			}
+			if bytes.HasSuffix(req[:reqIdx], []byte("\r\n\r\n")) {
+				break
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+	fmt.Printf("req: %q\r\n", req[:reqIdx])
+	fmt.Printf("len: %d\r\n", len(req[:reqIdx]))
+
+	adaptor.Write([]byte(fmt.Sprintf("AT+CIPSEND=\"%d\",\"%d\"\r\n", ch, reqIdx)))
+
+	// display response
+	fmt.Printf("-- req1\r\n")
+	r, err := adaptor.Response(30000)
+	if err != nil {
+		return err
+	} else {
+		console.Write(r)
+	}
+
+	if !bytes.HasSuffix(r, []byte(">")) {
+		r, err := adaptor.Response(30000)
+		if err != nil {
+			return err
+		} else {
+			console.Write(r)
+		}
+	}
+
+	adaptor.Write(req[:reqIdx])
+
+	// display response
+	fmt.Printf("-- req2\r\n")
+	n, err := adaptor.ResponseIPD(30000, response)
+	if err != nil {
+		return err
+	} else {
+		fmt.Printf("****\r\n%s\r\n", string(response[:n]))
+		fmt.Printf("**** %d\r\n", n)
+	}
+
+	reqIdx = 0
+
+	return nil
 }
 
 func prompt() {
