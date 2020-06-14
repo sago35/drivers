@@ -302,13 +302,23 @@ func (d *Device) ParseCIPSEND(b []byte) (int, int, error) {
 	return ch, length, err
 }
 
+func dump(start, end, contentRemain, contentLength, ipdLen int, res []byte) {
+	if len(res) == 0 {
+		// skip
+		//} else if 64 < len(res) {
+		//	fmt.Printf("-- %d %d %q...\r\n", start, end, res[:61])
+	} else {
+		fmt.Printf("-- %d %d %d/%d %d %q\r\n", start, end, contentRemain, contentLength, ipdLen, res)
+	}
+}
+
 // ResponseIPD gets the next response bytes from the ESP8266/ESP32.
 // The call will retry for up to timeout milliseconds before returning nothing.
 func (d *Device) ResponseIPD(timeout int) ([]byte, error) {
 	// read data
 	var size int
 	var start, end, wp int
-	pause := 100 // pause to wait for 100 ms
+	pause := 500 // pause to wait for 100 ms
 	retries := timeout / pause
 
 	type STATE int
@@ -336,22 +346,9 @@ func (d *Device) ResponseIPD(timeout int) ([]byte, error) {
 	var contentType string
 	var contentRemain int
 
-	var res []byte
-	dump := func() {
-		res = d.response[start:end]
-		if len(res) == 0 {
-			// skip
-		} else if 64 < len(res) {
-			fmt.Printf("-- %d %d %q...\r\n", start, end, res[:61])
-		} else {
-			//fmt.Printf("-- %d %d %d/%d %d %q\r\n", start, end, contentRemain, contentLength, ipdLen, res)
-			fmt.Printf("-- %d %d %d/%d %d\r\n", start, end, contentRemain, contentLength, ipdLen)
-		}
-	}
-
 	sum := 0
 	for {
-		dump()
+		dump(start, end, contentRemain, contentLength, ipdLen, d.response[start:end])
 		switch state {
 		case stRead1, stRead2, stRead3, stRead4, stRead5, stRead6:
 			size, err = d.at_spi_read(d.response[wp:])
@@ -528,7 +525,14 @@ func (d *Device) ResponseIPD(timeout int) ([]byte, error) {
 			start = 0
 			end = 0
 			wp = 0
-			if state != stRead1 {
+			switch state {
+			case stRead1:
+			case stRead2:
+			case stRead3:
+			case stRead4:
+			case stRead5:
+			case stRead6:
+			default:
 				state--
 			}
 		}
