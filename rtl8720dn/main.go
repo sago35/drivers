@@ -180,15 +180,60 @@ func (d *Device) at_spi_read(buf []byte) (int, error) {
 
 	l := d.spi_transfer16_cs((SPT_TAG_DMY << 8) | SPT_TAG_DMY)
 
-	err = d.at_wait_io(SPI_STATE_MOSI)
-	if err != nil {
-		fmt.Printf("r2 %s\r\n", err.Error())
+	//fmt.Printf("l : %d\r\n", l)
+	if true {
+		err = d.at_wait_io(SPI_STATE_MOSI)
+		if err != nil {
+			fmt.Printf("r2 %s\r\n", err.Error())
+		}
+	} else {
+		wait500ms := time.Now()
+		//s := wait500ms
+
+		// timeout 500ms
+		for {
+			if time.Now().Sub(wait500ms).Milliseconds() < 500 {
+				if d.syncPin.Get() == SPI_STATE_MOSI {
+					//for time.Now().Sub(s).Microseconds() < 10 {
+					//	s = time.Now()
+					//}
+					break
+				}
+			} else {
+				fmt.Printf("r2\r\n")
+			}
+			//for time.Now().Sub(s).Microseconds() < 10 {
+			//	s = time.Now()
+			//}
+		}
 	}
 
 	if l > 0 {
-		err = d.at_wait_io(SPI_STATE_MISO)
-		if err != nil {
-			fmt.Printf("r3 %s\r\n", err.Error())
+		if true {
+			err = d.at_wait_io(SPI_STATE_MISO)
+			if err != nil {
+				fmt.Printf("r3 %s\r\n", err.Error())
+			}
+		} else {
+			wait500ms := time.Now()
+			//s := wait500ms
+
+			// timeout 500ms
+			for {
+				if time.Now().Sub(wait500ms).Milliseconds() < 500 {
+					if d.syncPin.Get() == SPI_STATE_MISO {
+						//for time.Now().Sub(s).Microseconds() < 10 {
+						//	s = time.Now()
+						//}
+						break
+					}
+				} else {
+					fmt.Printf("r3\r\n")
+				}
+				//for time.Now().Sub(s).Microseconds() < 10 {
+				//	s = time.Now()
+				//}
+			}
 		}
 
 		d.csPin.Low()
