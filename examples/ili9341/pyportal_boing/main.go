@@ -140,6 +140,28 @@ func main() {
 
 		//height -= oh
 		height2 := height - oh
+		for y := 0; y < int(height2); y++ { // For each row...
+			for x := 0; x < int(graphics.BALLWIDTH); x++ {
+				c = uint16(graphics.Ball[int(y)*int(graphics.BALLWIDTH)+int(x)])
+				if c == 0 { // Outside ball - just draw grid
+					if graphics.Background[int(bally)+y][int(ballx)+x] != 0 {
+						c = GRIDCOLOR
+					} else {
+						c = BGCOLOR
+					}
+				} else if c > 1 { // In ball area...
+					c = palette[c]
+				} else { // In shadow area...
+					if graphics.Background[int(bally)+y][int(ballx)+x] != 0 {
+						c = GRIDSHADOW
+					} else {
+						c = BGSHADOW
+					}
+				}
+				frameBuffer[(y-int(by))*int(width)+(x-int(bx))] = c
+			}
+		}
+
 		if 0 < ballvx {
 			// to right
 			for y := 0; y < int(height2); y++ { // For each row...
@@ -180,28 +202,6 @@ func main() {
 			}
 		} else {
 			// to up
-		}
-
-		for y := 0; y < int(height2); y++ { // For each row...
-			for x := 0; x < int(graphics.BALLWIDTH); x++ {
-				c = uint16(graphics.Ball[int(y)*int(graphics.BALLWIDTH)+int(x)])
-				if c == 0 { // Outside ball - just draw grid
-					if graphics.Background[int(bally)+y][int(ballx)+x] != 0 {
-						c = GRIDCOLOR
-					} else {
-						c = BGCOLOR
-					}
-				} else if c > 1 { // In ball area...
-					c = palette[c]
-				} else { // In shadow area...
-					if graphics.Background[int(bally)+y][int(ballx)+x] != 0 {
-						c = GRIDSHADOW
-					} else {
-						c = BGSHADOW
-					}
-				}
-				frameBuffer[(y-int(by))*int(width)+(x-int(bx))] = c
-			}
 		}
 
 		display.DrawRGBBitmap(minx, miny, frameBuffer[:width*height2], width, height2)
@@ -274,6 +274,30 @@ func main() {
 
 		display.DrawRGBBitmap(minx, miny+height2, frameBuffer[:width*(height-height2)], width, (height - height2))
 		//display.DrawRGBBitmapDMA(minx, miny, frameBuffer[:width*height], width, height)
+
+		// dummy
+		for y := int(height2 + by); y < int(height2+by)+1; y++ { // For each row...
+			for x := 0; x < int(graphics.BALLWIDTH); x++ {
+				c = uint16(graphics.Ball[int(y)*int(graphics.BALLWIDTH)+int(x)])
+				if c == 0 { // Outside ball - just draw grid
+					if graphics.Background[int(bally)+y][int(ballx)+x] != 0 {
+						c = GRIDCOLOR
+					} else {
+						c = BGCOLOR
+					}
+				} else if c > 1 { // In ball area...
+					c = palette[c]
+				} else { // In shadow area...
+					if graphics.Background[int(bally)+y][int(ballx)+x] != 0 {
+						c = GRIDSHADOW
+					} else {
+						c = BGSHADOW
+					}
+				}
+				//frameBuffer[(y+int(by))*int(width)+(x+int(bx))] = c
+				frameBuffer[(y-int(height2+by))*int(width)+(x-int(bx))] = c
+			}
+		}
 
 		// Show approximate frame rate
 		frame++
