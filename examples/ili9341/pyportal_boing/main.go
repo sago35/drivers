@@ -11,11 +11,11 @@ import (
 )
 
 const (
-	BGCOLOR    = 0xAD75
-	GRIDCOLOR  = 0xA815
-	BGSHADOW   = 0x5285
-	GRIDSHADOW = 0x600C
-	RED        = 0xF800
+	BGCOLOR    = 0x75AD
+	GRIDCOLOR  = 0x15A8
+	BGSHADOW   = 0x8552
+	GRIDSHADOW = 0x0C60
+	RED        = 0x00F8
 	WHITE      = 0xFFFF
 
 	YBOTTOM = 123  // Ball Y coord at bottom
