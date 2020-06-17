@@ -1,6 +1,7 @@
 package ili9341
 
 import (
+	"device/sam"
 	"errors"
 	"image/color"
 	"machine"
@@ -138,16 +139,24 @@ func (d *Device) Display() error {
 	return nil
 }
 
+var _need_wait_ = false
+
 func (d *Device) DrawRGBBitmap(x, y int16, data []uint16, w, h int16) error {
 	k, i := d.Size()
 	if x < 0 || y < 0 || w <= 0 || h <= 0 ||
 		x >= k || (x+w) > k || y >= i || (y+h) > i {
 		return errors.New("rectangle coordinates outside display area")
 	}
+	if _need_wait_ {
+		for !sam.DMAC.CHINTFLAG.HasBits(sam.DMAC_CHINTFLAG_TCMPL) {
+		}
+		sam.DMAC.CHINTFLAG.SetBits(sam.DMAC_CHINTFLAG_TCMPL)
+		_need_wait_ = true
+	}
+	d.endWrite()
 	d.setWindow(x, y, w, h)
 	d.startWrite()
 	d.driver.write16sl(data)
-	d.endWrite()
 	return nil
 }
 
