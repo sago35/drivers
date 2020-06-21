@@ -28,10 +28,6 @@ var pass = "YOURPASS"
 // these are the default pins for the Arduino Nano33 IoT.
 // change these to connect to a different UART or pins for the ESP8266/ESP32
 var (
-	uart = machine.UART1
-	tx   = machine.PA22
-	rx   = machine.PA23
-
 	console = machine.UART0
 
 	spi     machine.SPI
