@@ -43,6 +43,8 @@ type Device struct {
 	socketdata []byte
 
 	startSocketSend bool
+
+	socketConnected bool
 }
 
 type Config struct {
@@ -60,8 +62,8 @@ func New(bus machine.SPI, chipPu, syncPin, csPin, uartRxPin machine.Pin) *Device
 		csPin:     csPin,
 		uartRxPin: uartRxPin,
 
-		response:   make([]byte, 512),
-		socketdata: make([]byte, 0, 1024),
+		response:   make([]byte, 4096),
+		socketdata: make([]byte, 0, 4096),
 	}
 }
 
@@ -122,6 +124,7 @@ func (d *Device) Connected() bool {
 // Write raw bytes to the UART.
 func (d *Device) Write(b []byte) (n int, err error) {
 	if d.startSocketSend {
+		d.InitIPD2()
 		d.socketdata = append(d.socketdata, b...)
 
 		//fmt.Printf("Write(%#v)\r\n", string(d.socketdata))
@@ -218,22 +221,25 @@ func (d Device) Reset() {
 // ReadSocket returns the data that has already been read in from the responses.
 func (d *Device) ReadSocket(b []byte) (n int, err error) {
 	// make sure no data in buffer
-	d.Response(300)
-
-	count := len(b)
-	if len(b) >= len(d.socketdata) {
-		// copy it all, then clear socket data
-		count = len(d.socketdata)
-		copy(b, d.socketdata[:count])
-		d.socketdata = d.socketdata[:0]
-	} else {
-		// copy all we can, then keep the remaining socket data around
-		copy(b, d.socketdata[:count])
-		copy(d.socketdata, d.socketdata[count:])
-		d.socketdata = d.socketdata[:len(d.socketdata)-count]
+	n, err = d.ResponseIPD2(30000, b)
+	if err != nil {
+		return 0, err
 	}
 
-	return count, nil
+	//count := len(b)
+	//if len(b) >= len(d.socketdata) {
+	//	// copy it all, then clear socket data
+	//	count = len(d.socketdata)
+	//	copy(b, d.socketdata[:count])
+	//	d.socketdata = d.socketdata[:0]
+	//} else {
+	//	// copy all we can, then keep the remaining socket data around
+	//	copy(b, d.socketdata[:count])
+	//	copy(d.socketdata, d.socketdata[count:])
+	//	d.socketdata = d.socketdata[:len(d.socketdata)-count]
+	//}
+
+	return n, nil
 }
 
 // Response gets the next response bytes from the ESP8266/ESP32.
@@ -254,7 +260,7 @@ func (d *Device) Response(timeout int) ([]byte, error) {
 
 		if size > 0 {
 			end += size
-			fmt.Printf("res: %q\r\n", d.response[start:end])
+			//fmt.Printf("res-: %q\r\n", d.response[start:end])
 
 			if strings.Contains(string(d.response[:end]), "ready") {
 				return d.response[start:end], nil
@@ -351,6 +357,7 @@ const (
 	stIpdBody2
 	stRead6
 	stMain
+	stEnd
 )
 
 func dump(state STATE, start, end, contentRemain, contentLength, ipdLen int, res []byte) {
@@ -665,3 +672,229 @@ const (
 	StatusConnectionLost ConnectionStatus = 5
 	StatusDisconnected   ConnectionStatus = 6
 )
+
+var ipd2state = stRead1
+var ipdLen = int(0)
+var start, end, wp int
+var contentLength int
+var contentType string
+var contentRemain int
+
+func (d *Device) InitIPD2() {
+	ipd2state = stRead1
+	ipdLen = 0
+	start = 0
+	end = 0
+	wp = 0
+	contentLength = 0
+	contentType = ""
+	contentRemain = 0
+}
+
+func (d *Device) ResponseIPD2(timeout int, buf []byte) (int, error) {
+	// read data
+	var size int
+	pause := 5 // pause to wait for 100 ms
+	retries := timeout / pause
+
+	var err error
+	var header []byte
+	var response Response
+	var bufIdx int
+
+	//sum := 0
+	for {
+		//dump(ipd2state, start, end, contentRemain, contentLength, ipdLen, d.response[start:end])
+		switch ipd2state {
+		case stRead1, stRead2, stRead3, stRead4, stRead5, stRead6:
+			size, err = d.at_spi_read(d.response[wp:])
+			if err != nil {
+				return 0, err
+			}
+			if 0 < size {
+				end += size
+				//dump()
+				ipd2state++
+
+				if false {
+					//// TODO: for debug
+					////fmt.Printf("%q\r\n", string(d.response[start:end]))
+					//sum += end - start
+					//fmt.Printf("[[%d]]%q\r\n", sum, string(d.response[start:end]))
+					//start = 0
+					//end = 0
+					//ipd2state--
+					//continue
+				}
+			} else if size < 0 {
+				return 0, fmt.Errorf("err1")
+			} else if size == 0 {
+				// wait longer?
+				retries--
+				if retries == 0 {
+					return 0, fmt.Errorf("response timeout error:" + string(d.response[start:end]))
+				}
+
+				time.Sleep(time.Duration(pause) * time.Millisecond)
+			}
+
+		case stIPSENDRes:
+			if !bytes.HasPrefix(d.response[start:end], []byte("\r\nSEND OK\r\n")) {
+				// error?
+				//return d.response[start:end], nil
+				return 0, fmt.Errorf("err res")
+			}
+
+			start += len([]byte("\r\nSEND OK\r\n"))
+			ipd2state = stIpdHeader1
+
+		case stIpdHeader1:
+			if end-start < 7 {
+				ipd2state--
+				copy(d.response, d.response[start:end])
+				end = end - start
+				start = 0
+				wp = end
+				continue
+			} else if !bytes.HasPrefix(d.response[start:end], []byte("\r\n+IPD,")) {
+				return 0, fmt.Errorf("err2")
+			}
+			idx := bytes.IndexByte(d.response[start:end], byte(':'))
+			if idx < 0 {
+				ipd2state--
+				// TODO:
+				//wp += end
+				continue
+			}
+			s := bytes.Split(d.response[start:start+idx], []byte(","))
+			// ch,len,IP,port
+			l, err := strconv.ParseUint(string(s[2]), 10, 0)
+			if err != nil {
+				return 0, err
+			}
+			ipdLen = int(l)
+
+			start += idx + 1
+			ipd2state = stIpdBody1
+
+		case stIpdBody1:
+			// HTTP header
+			endOfHeader := bytes.Index(d.response[start:end], []byte("\r\n\r\n"))
+			if endOfHeader < -1 {
+				ipd2state--
+				wp += end
+				continue
+			}
+			endOfHeader += 4
+
+			header = d.response[start : start+endOfHeader]
+			start += endOfHeader
+			ipdLen -= endOfHeader
+			ipd2state = stIpdHeader2
+			wp = end
+			if 0 < ipdLen {
+				ipd2state = stIpdBody2
+			}
+
+			idx := bytes.Index(header, []byte("Content-Length: "))
+			if 0 <= idx {
+				_, err := fmt.Sscanf(string(header[idx+16:]), "%d", &contentLength)
+				if err != nil {
+					return 0, err
+				}
+				contentRemain = contentLength
+				response.ContentLength = int64(contentLength)
+			}
+
+			idx = bytes.Index(header, []byte("Content-type: "))
+			if 0 <= idx {
+				_, err := fmt.Sscanf(string(header[idx+14:]), "%s", &contentType)
+				if err != nil {
+					return 0, err
+				}
+				response.Header.ContentType = contentType
+			}
+
+		case stIpdHeader2:
+			if end-start < 7 {
+				ipd2state--
+				copy(d.response, d.response[start:end])
+				end = end - start
+				start = 0
+				wp = end
+				continue
+			} else if !bytes.HasPrefix(d.response[start:end], []byte("\r\n+IPD,")) {
+				return 0, fmt.Errorf("err3")
+			}
+			idx := bytes.IndexByte(d.response[start:end], byte(':'))
+			if idx < 0 {
+				ipd2state--
+				continue
+			}
+
+			s := bytes.Split(d.response[start:start+idx], []byte(","))
+			// ch,len,IP,port
+			l, err := strconv.ParseUint(string(s[2]), 10, 0)
+			if err != nil {
+				return 0, err
+			}
+			ipdLen = int(l)
+
+			start += idx + 1
+			ipd2state = stIpdBody2
+
+		case stIpdBody2:
+			// HTTP body
+			if ipdLen < end-start {
+				copy(buf[bufIdx:], d.response[start:start+ipdLen])
+				start += ipdLen
+				contentRemain -= ipdLen
+				ipdLen = 0
+				ipd2state = stIpdHeader2
+				bufIdx += ipdLen
+			} else if ipdLen == end-start {
+				copy(buf[bufIdx:], d.response[start:end])
+				bufIdx += end - start
+				start = end
+				contentRemain -= ipdLen
+				ipdLen = 0
+				ipd2state = stIpdHeader2
+			} else {
+				copy(buf[bufIdx:], d.response[start:end])
+				bufIdx += end - start
+				contentRemain -= end - start
+				ipdLen -= end - start
+				start = end
+			}
+
+		default:
+			return 0, nil
+		}
+
+		if 0 < contentLength && contentRemain == 0 {
+			start = 0
+			end = 0
+			wp = 0
+			ipd2state = stEnd
+			return bufIdx, nil
+		} else if start == end {
+			start = 0
+			end = 0
+			wp = 0
+			switch ipd2state {
+			case stRead1:
+			case stRead2:
+			case stRead3:
+			case stRead4:
+			case stRead5:
+			case stRead6:
+			default:
+				ipd2state--
+			}
+		}
+
+		if 0 < bufIdx {
+			return bufIdx, nil
+		}
+	}
+}

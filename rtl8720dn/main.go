@@ -252,11 +252,11 @@ func (d *Device) at_spi_read(buf []byte) (int, error) {
 
 	}
 
-	if 0 < l {
-		fmt.Printf(" %d\r\n", l)
-	} else {
-		fmt.Printf(".")
-	}
+	//if 0 < l {
+	//	fmt.Printf(" %d\r\n", l)
+	//} else {
+	//	fmt.Printf(".")
+	//}
 
 	return r, nil
 }

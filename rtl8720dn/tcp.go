@@ -36,7 +36,6 @@ func (d *Device) GetDNS(domain string) (string, error) {
 // ConnectTCPSocket creates a new TCP socket connection for the ESP8266/ESP32.
 // Currently only supports single connection mode.
 func (d *Device) ConnectTCPSocket(addr, port string) error {
-	fmt.Printf("ConnectTCPSocket(%q, %q)\r\n", addr, port)
 	protocol := "TCP"
 	val := "\"0\"," + "\"" + protocol + "\",\"" + addr + "\"," + port + ",120"
 	err := d.Set(TCPConnect, val)
@@ -47,6 +46,7 @@ func (d *Device) ConnectTCPSocket(addr, port string) error {
 	if e != nil {
 		return e
 	}
+	d.socketConnected = true
 	return nil
 }
 
@@ -81,7 +81,10 @@ func (d *Device) ConnectSSLSocket(addr, port string) error {
 
 // DisconnectSocket disconnects the ESP8266/ESP32 from the current TCP/UDP connection.
 func (d *Device) DisconnectSocket() error {
-	err := d.Execute(TCPClose)
+	if !d.socketConnected {
+		return nil
+	}
+	err := d.Execute(fmt.Sprintf(`%s="%d"`, TCPClose, 0))
 	if err != nil {
 		return err
 	}
@@ -89,6 +92,8 @@ func (d *Device) DisconnectSocket() error {
 	if e != nil {
 		return e
 	}
+
+	d.socketConnected = false
 	return nil
 }
 
@@ -124,7 +129,6 @@ func (d *Device) GetTCPTransferMode() ([]byte, error) {
 
 // StartSocketSend gets the ESP8266/ESP32 ready to receive TCP/UDP socket data.
 func (d *Device) StartSocketSend(size int) error {
-	fmt.Printf("StartSocketSend(%d)\r\n", size)
 	d.startSocketSend = true
 	return nil
 }
