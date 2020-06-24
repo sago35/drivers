@@ -55,7 +55,7 @@ func DialTCP(network string, laddr, raddr *TCPAddr) (*TCPSerialConn, error) {
 	sendport := strconv.Itoa(raddr.Port)
 
 	// disconnect any old socket?
-	//ActiveDevice.DisconnectSocket()
+	ActiveDevice.DisconnectSocket()
 
 	// connect new socket
 	err := ActiveDevice.ConnectTCPSocket(addr, sendport)
@@ -148,10 +148,10 @@ func (c *SerialConn) Write(b []byte) (n int, err error) {
 		return n, err
 	}
 	/* TODO(bcg): this is kind of specific to espat, should maybe refactor */
-	_, err = c.Adaptor.Response(1000)
-	if err != nil {
-		return n, err
-	}
+	//_, err = c.Adaptor.Response(1000)
+	//if err != nil {
+	//	return n, err
+	//}
 	return n, err
 }
 
