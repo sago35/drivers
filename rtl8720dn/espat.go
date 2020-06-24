@@ -20,6 +20,7 @@ package rtl8720dn
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"machine"
 	"strconv"
@@ -40,6 +41,8 @@ type Device struct {
 
 	// data received from a TCP/UDP connection forwarded by the ESP8266/ESP32
 	socketdata []byte
+
+	startSocketSend bool
 }
 
 type Config struct {
@@ -118,14 +121,46 @@ func (d *Device) Connected() bool {
 
 // Write raw bytes to the UART.
 func (d *Device) Write(b []byte) (n int, err error) {
+	if d.startSocketSend {
+		d.socketdata = append(d.socketdata, b...)
+
+		//fmt.Printf("Write(%#v)\r\n", string(d.socketdata))
+		if bytes.HasSuffix(d.socketdata, []byte("\n\n")) {
+			d.startSocketSend = false
+
+			ch := 0
+			d.Write([]byte(fmt.Sprintf("AT+CIPSEND=\"%d\",\"%d\"\r\n", ch, len(d.socketdata))))
+
+			// display response
+			r, err := d.Response(30000)
+			if err != nil {
+				return 0, err
+			}
+
+			if !bytes.HasSuffix(r, []byte(">")) {
+				_, err := d.Response(30000)
+				if err != nil {
+					return 0, err
+				}
+			}
+
+			d.Write(d.socketdata)
+		}
+		return len(b), nil
+	}
 	//return d.bus.Write(b)
 	return d.at_spi_write(b)
 }
 
 // Read raw bytes from the UART.
 func (d *Device) Read(b []byte) (n int, err error) {
-	//return d.bus.Read(b)
-	return 0, nil
+	// display response
+	n, err = d.ResponseIPD(30000, b)
+	if err != nil {
+		return 0, err
+	}
+
+	return n, nil
 }
 
 // how long in milliseconds to pause after sending AT commands
@@ -555,3 +590,78 @@ func (d *Device) ResponseIPD(timeout int, buf []byte) (int, error) {
 
 	}
 }
+
+func (d *Device) SetPassphrase(ssid string, passphrase string) error {
+	return d.ConnectToAP(ssid, passphrase, 40)
+}
+
+func (d *Device) GetConnectionStatus() (ConnectionStatus, error) {
+	// TODO:
+	return StatusConnected, nil
+}
+
+func (d *Device) GetIP() (ip, subnet, gateway IPAddress, err error) {
+	ip2, err2 := d.GetClientIP()
+	return IPAddress(ip2), IPAddress("255.255.255.0"), IPAddress("192.168.1.1"), err2
+}
+
+type IPAddress string // TODO: does WiFiNINA support ipv6???
+
+func (addr IPAddress) String() string {
+	if len(addr) < 4 {
+		return ""
+	}
+	return fmt.Sprintf("%d.%d.%d.%d", addr[0], addr[1], addr[2], addr[3])
+}
+
+func ParseIPv4(s string) (IPAddress, error) {
+	var v0, v1, v2, v3 uint8
+	if _, err := fmt.Sscanf(s, "%d.%d.%d.%d", &v0, &v1, &v2, &v3); err != nil {
+		return "", err
+	}
+	return IPAddress([]byte{v0, v1, v2, v3}), nil
+}
+
+func (addr IPAddress) AsUint32() uint32 {
+	if len(addr) < 4 {
+		return 0
+	}
+	b := []byte(string(addr))
+	return binary.BigEndian.Uint32(b[0:4])
+}
+
+type ConnectionStatus uint8
+
+func (c ConnectionStatus) String() string {
+	switch c {
+	case StatusIdle:
+		return "Idle"
+	case StatusNoSSIDAvail:
+		return "No SSID Available"
+	case StatusScanCompleted:
+		return "Scan Completed"
+	case StatusConnected:
+		return "Connected"
+	case StatusConnectFailed:
+		return "Connect Failed"
+	case StatusConnectionLost:
+		return "Connection Lost"
+	case StatusDisconnected:
+		return "Disconnected"
+	case StatusNoShield:
+		return "No Shield"
+	default:
+		return "Unknown"
+	}
+}
+
+const (
+	StatusNoShield       ConnectionStatus = 255
+	StatusIdle           ConnectionStatus = 0
+	StatusNoSSIDAvail    ConnectionStatus = 1
+	StatusScanCompleted  ConnectionStatus = 2
+	StatusConnected      ConnectionStatus = 3
+	StatusConnectFailed  ConnectionStatus = 4
+	StatusConnectionLost ConnectionStatus = 5
+	StatusDisconnected   ConnectionStatus = 6
+)

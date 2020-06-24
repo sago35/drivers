@@ -2,6 +2,7 @@ package rtl8720dn
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 )
@@ -35,8 +36,9 @@ func (d *Device) GetDNS(domain string) (string, error) {
 // ConnectTCPSocket creates a new TCP socket connection for the ESP8266/ESP32.
 // Currently only supports single connection mode.
 func (d *Device) ConnectTCPSocket(addr, port string) error {
+	fmt.Printf("ConnectTCPSocket(%q, %q)\r\n", addr, port)
 	protocol := "TCP"
-	val := "\"" + protocol + "\",\"" + addr + "\"," + port + ",120"
+	val := "\"0\"," + "\"" + protocol + "\",\"" + addr + "\"," + port + ",120"
 	err := d.Set(TCPConnect, val)
 	if err != nil {
 		return err
@@ -122,19 +124,9 @@ func (d *Device) GetTCPTransferMode() ([]byte, error) {
 
 // StartSocketSend gets the ESP8266/ESP32 ready to receive TCP/UDP socket data.
 func (d *Device) StartSocketSend(size int) error {
-	val := strconv.Itoa(size)
-	d.Set(TCPSend, val)
-
-	// when ">" is received, it indicates
-	// ready to receive data
-	r, err := d.Response(2000)
-	if err != nil {
-		return err
-	}
-	if strings.Contains(string(r), ">") {
-		return nil
-	}
-	return errors.New("StartSocketSend error:" + string(r))
+	fmt.Printf("StartSocketSend(%d)\r\n", size)
+	d.startSocketSend = true
+	return nil
 }
 
 // EndSocketSend tell the ESP8266/ESP32 the TCP/UDP socket data sending is complete,
