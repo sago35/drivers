@@ -128,11 +128,10 @@ func (d *Device) Write(b []byte) (n int, err error) {
 		d.socketdata = append(d.socketdata, b...)
 
 		//fmt.Printf("Write(%#v)\r\n", string(d.socketdata))
-		if bytes.HasSuffix(d.socketdata, []byte("\n\n")) {
+		if bytes.HasSuffix(d.socketdata, []byte("\n\n")) || bytes.HasSuffix(d.socketdata, []byte("\r\n\r\n")) {
 			d.startSocketSend = false
 
-			ch := 0
-			d.Write([]byte(fmt.Sprintf("AT+CIPSEND=\"%d\",\"%d\"\r\n", ch, len(d.socketdata))))
+			d.Write([]byte(fmt.Sprintf("AT+CIPSEND=%d,%d\r\n", 4, len(d.socketdata))))
 
 			// display response
 			r, err := d.Response(30000)
@@ -148,6 +147,7 @@ func (d *Device) Write(b []byte) (n int, err error) {
 			}
 
 			d.Write(d.socketdata)
+			d.socketdata = d.socketdata[:0]
 		}
 		return len(b), nil
 	}

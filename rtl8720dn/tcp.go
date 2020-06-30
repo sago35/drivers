@@ -36,8 +36,30 @@ func (d *Device) GetDNS(domain string) (string, error) {
 // ConnectTCPSocket creates a new TCP socket connection for the ESP8266/ESP32.
 // Currently only supports single connection mode.
 func (d *Device) ConnectTCPSocket(addr, port string) error {
+	if false {
+		err := d.Set(TCPDNSLookup, fmt.Sprintf(`"%s"`, addr))
+		if err != nil {
+			return err
+		}
+		_, e := d.Response(3000)
+		if e != nil {
+			return e
+		}
+	}
+
+	if false {
+		err := d.Execute(TCPStatus)
+		if err != nil {
+			return err
+		}
+		_, e := d.Response(3000)
+		if e != nil {
+			return e
+		}
+	}
+
 	protocol := "TCP"
-	val := "\"0\"," + "\"" + protocol + "\",\"" + addr + "\"," + port + ",120"
+	val := fmt.Sprintf("%d", 4) + ",\"" + protocol + "\",\"" + addr + "\"," + port + ",0"
 	err := d.Set(TCPConnect, val)
 	if err != nil {
 		return err
@@ -47,6 +69,18 @@ func (d *Device) ConnectTCPSocket(addr, port string) error {
 		return e
 	}
 	d.socketConnected = true
+
+	if false {
+		err := d.Execute(TCPStatus)
+		if err != nil {
+			return err
+		}
+		_, e := d.Response(3000)
+		if e != nil {
+			return e
+		}
+	}
+
 	return nil
 }
 
@@ -84,7 +118,9 @@ func (d *Device) DisconnectSocket() error {
 	if !d.socketConnected {
 		return nil
 	}
-	err := d.Execute(fmt.Sprintf(`%s="%d"`, TCPClose, 0))
+	d.socketConnected = false
+
+	err := d.Execute(fmt.Sprintf(`%s=%d`, TCPClose, 4))
 	if err != nil {
 		return err
 	}
@@ -93,7 +129,6 @@ func (d *Device) DisconnectSocket() error {
 		return e
 	}
 
-	d.socketConnected = false
 	return nil
 }
 
