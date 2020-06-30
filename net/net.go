@@ -55,7 +55,10 @@ func DialTCP(network string, laddr, raddr *TCPAddr) (*TCPSerialConn, error) {
 	sendport := strconv.Itoa(raddr.Port)
 
 	// disconnect any old socket?
-	ActiveDevice.DisconnectSocket()
+	//err := ActiveDevice.DisconnectSocket()
+	//if err != nil {
+	//	return nil, err
+	//}
 
 	// connect new socket
 	err := ActiveDevice.ConnectTCPSocket(addr, sendport)
