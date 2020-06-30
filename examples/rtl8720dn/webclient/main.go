@@ -43,6 +43,8 @@ var buf [4096]byte
 var lastRequestTime time.Time
 var conn net.Conn
 
+var cnt int
+
 func main() {
 
 	led := machine.LED
@@ -62,15 +64,28 @@ func main() {
 
 func loop() {
 	if conn != nil {
-		for n, err := conn.Read(buf[:]); n > 0; n, err = conn.Read(buf[:]) {
+		var err error
+		var n int
+		for n, err = conn.Read(buf[:]); n > 0; n, err = conn.Read(buf[:]) {
 			if err != nil {
 				println("Read error: " + err.Error())
 			} else {
 				print(string(buf[0:n]))
 			}
 		}
+		if err != nil {
+			println("Read error2: " + err.Error())
+		}
+
+		err = conn.Close()
+		if err != nil {
+			println("Read error3: " + err.Error())
+		}
+		//rtl8720dn.NextSocketCh()
 	}
 	if time.Now().Sub(lastRequestTime).Milliseconds() >= 10000 {
+		cnt++
+		fmt.Printf("-- try %d --\r\n", cnt)
 		makeHTTPRequest()
 	}
 }
