@@ -595,3 +595,11 @@ func (d Device) WriteStop() error {
 	d.cs.High()
 	return nil
 }
+
+func (dev *Device) WriteAt(buf []byte, addr int64) (n int, err error) {
+	return 0, nil
+}
+
+func (dev *Device) ReadAt(buf []byte, addr int64) (int, error) {
+	return 0, nil
+}
