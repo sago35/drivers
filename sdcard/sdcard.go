@@ -73,7 +73,7 @@ func New(b machine.SPI, cs machine.Pin) Device {
 	}
 }
 
-func (d Device) Configure() error {
+func (d *Device) Configure() error {
 	return d.initCard()
 }
 
@@ -88,7 +88,7 @@ func (d Device) Configure() error {
 //	})
 //}
 
-func (d Device) initCard() error {
+func (d *Device) initCard() error {
 	// set pin modes
 	d.cs.Configure(machine.PinConfig{Mode: machine.PinOutput})
 	d.cs.High()
@@ -573,10 +573,10 @@ func (d Device) WriteBlock(blockNumber uint32, src []byte, blocking bool) error 
 				return err
 			}
 			if r > 0 {
-				fmt.Errorf("SD_CARD_ERROR_WRITE_PROGRAMMING")
+				return fmt.Errorf("SD_CARD_ERROR_WRITE_PROGRAMMING")
 			}
 		} else {
-			fmt.Errorf("SD_CARD_ERROR_WRITE_PROGRAMMING")
+			return fmt.Errorf("SD_CARD_ERROR_WRITE_PROGRAMMING")
 		}
 	}
 	d.cs.High()
