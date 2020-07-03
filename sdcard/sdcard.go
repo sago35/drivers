@@ -479,13 +479,15 @@ func (d Device) ReadData(block uint32, offset, count uint16, dst []byte) error {
 		}
 		dst[i] = r
 	}
+	// skip data after offset + count
+	for i := count; i < 512; i++ {
+		d.bus.Transfer(byte(0xFF))
+	}
 	fmt.Printf("CMD17 read done\r\n")
 
 	offset_ += count
 
-	if partialBlockRead_ > 0 || offset_ >= 512 {
-		d.readEnd()
-	}
+	d.readEnd()
 
 	return nil
 }
@@ -601,5 +603,13 @@ func (dev *Device) WriteAt(buf []byte, addr int64) (n int, err error) {
 }
 
 func (dev *Device) ReadAt(buf []byte, addr int64) (int, error) {
-	return 0, nil
+	block := uint64(addr)
+	if dev.sdCardType == SD_CARD_TYPE_SDHC {
+		block >>= 9
+	}
+	err := dev.ReadData(uint32(block), 0, uint16(len(buf)), buf)
+	if err != nil {
+		return 0, nil
+	}
+	return len(buf), nil
 }

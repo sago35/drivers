@@ -343,7 +343,10 @@ func xxd(argv []string) {
 		return
 	}
 	buf := store[0:size]
-	dev.ReadAt(buf, int64(addr))
+	_, err = dev.ReadAt(buf, int64(addr))
+	if err != nil {
+		fmt.Printf("xxd err : %s\r\n", err.Error())
+	}
 	xxdfprint(os.Stdout, uint32(addr), buf)
 }
 
