@@ -224,7 +224,9 @@ func (d Device) cmd(cmd byte, arg uint32, crc byte) byte {
 
 	d.cs.Low()
 
-	d.waitNotBusy(300)
+	if cmd != 12 {
+		d.waitNotBusy(300)
+	}
 
 	// create and send the command
 	buf := d.cmdbuf
@@ -235,6 +237,11 @@ func (d Device) cmd(cmd byte, arg uint32, crc byte) byte {
 	buf[4] = byte(arg)
 	buf[5] = crc
 	d.bus.Tx(buf, nil)
+
+	if cmd == 12 {
+		// skip 1 byte
+		d.bus.Transfer(byte(0xFF))
+	}
 
 	// wait for the response (response[7] == 0)
 	for i := 0; i < 0xFFFF; i++ {
@@ -488,6 +495,50 @@ func (d Device) ReadData(block uint32, offset, count uint16, dst []byte) error {
 	offset_ += count
 
 	d.readEnd()
+
+	return nil
+}
+
+func (d Device) ReadBlocks(block uint32, dst []byte) error {
+	return d.ReadData(block, 0, 512, dst)
+}
+
+func (d Device) ReadMultiStart(block uint32) error {
+	fmt.Printf("CMD18\r\n")
+	block_ = block
+	// use address if not SDHC card
+	if d.sdCardType != SD_CARD_TYPE_SDHC {
+		block <<= 9
+	}
+	if d.cmd(18, block, 0) != 0 {
+		return fmt.Errorf("CMD18 error")
+	}
+	if err := d.waitStartBlock(); err != nil {
+		return fmt.Errorf("waitStartBlock()")
+	}
+
+	return nil
+}
+
+func (d Device) ReadMulti(buf []byte) error {
+	for i := 0; i < 512; i++ {
+		r, err := d.bus.Transfer(byte(0xFF))
+		if err != nil {
+			return err
+		}
+		buf[i] = r
+	}
+	return nil
+}
+
+func (d Device) ReadMultiStop() error {
+	fmt.Printf("CMD12\r\n")
+
+	if d.cmd(12, 0, 0) != 0 {
+		d.cs.High()
+		return fmt.Errorf("CMD12 error")
+	}
+	d.cs.High()
 
 	return nil
 }
