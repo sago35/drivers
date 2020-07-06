@@ -195,15 +195,6 @@ func (d *Device) initCard() error {
 		}
 	}
 
-	if d.sdCardType == SD_CARD_TYPE_SD1 {
-		fmt.Printf("SD_CARD_TYPE_SD1\r\n")
-	} else if d.sdCardType == SD_CARD_TYPE_SD2 {
-		fmt.Printf("SD_CARD_TYPE_SD2\r\n")
-	} else if d.sdCardType == SD_CARD_TYPE_SDHC {
-		fmt.Printf("SD_CARD_TYPE_SDHC\r\n")
-	} else {
-		fmt.Printf("SD_CARD_TYPE_ERROR\r\n")
-	}
 	d.cs.High()
 
 	return nil
@@ -424,7 +415,6 @@ func (d Device) ReadData(block uint32, offset, count uint16, dst []byte) error {
 	}
 	//if inBlock_ != 0 || block != block_ || offset < offset_
 	{
-		fmt.Printf("CMD17\r\n")
 		block_ = block
 		// use address if not SDHC card
 		if d.sdCardType != SD_CARD_TYPE_SDHC {
@@ -456,7 +446,6 @@ func (d Device) ReadData(block uint32, offset, count uint16, dst []byte) error {
 	for i := count; i < 512; i++ {
 		d.bus.Transfer(byte(0xFF))
 	}
-	fmt.Printf("CMD17 read done\r\n")
 
 	offset_ += count
 
@@ -466,7 +455,6 @@ func (d Device) ReadData(block uint32, offset, count uint16, dst []byte) error {
 }
 
 func (d Device) ReadMultiStart(block uint32) error {
-	fmt.Printf("CMD18\r\n")
 	// use address if not SDHC card
 	if d.sdCardType != SD_CARD_TYPE_SDHC {
 		block <<= 9
@@ -503,7 +491,6 @@ func (d Device) ReadMulti(buf []byte) error {
 }
 
 func (d Device) ReadMultiStop() error {
-	fmt.Printf("CMD12\r\n")
 
 	if d.cmd(12, 0, 0) != 0 {
 		d.cs.High()
@@ -515,7 +502,6 @@ func (d Device) ReadMultiStop() error {
 }
 
 func (d Device) WriteMultiStart(block uint32) error {
-	fmt.Printf("CMD25\r\n")
 	// use address if not SDHC card
 	if d.sdCardType != SD_CARD_TYPE_SDHC {
 		block <<= 9
@@ -569,7 +555,6 @@ func (d Device) WriteData(block uint32, offset, count uint16, src []byte) error 
 		return fmt.Errorf("count + offset > 512")
 	}
 	{
-		fmt.Printf("CMD24\r\n")
 		// use address if not SDHC card
 		if d.sdCardType != SD_CARD_TYPE_SDHC {
 			block <<= 9
