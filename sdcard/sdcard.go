@@ -314,40 +314,6 @@ func (d Device) waitStartBlock() error {
 	return nil
 }
 
-func (d Device) readinto(buf []byte) error {
-	//d.cs.Low()
-
-	//// read until start byte (0xff)
-	//ok := false
-	//for i := 0; i < _CMD_TIMEOUT; i++ {
-	//	d.bus.Tx([]byte{0xFF}, d.tokenbuf)
-	//	if d.tokenbuf[0] == _TOKEN_DATA {
-	//		ok = true
-	//		break
-	//	}
-	//}
-	//if !ok {
-	//	d.cs.High()
-	//	fmt.Printf("timeout waiting for response\r\n")
-	//	return fmt.Errorf("timeout waiting for response")
-	//}
-
-	//// read data
-	//mv := d.dummybufMemoryView // TODO: 初期化
-	//if len(buf) != len(mv) {
-	//	mv = mv[:len(buf)]
-	//}
-	//d.bus.Tx(mv, buf)
-
-	//// read checksum
-	//d.bus.Transfer(byte(0xFF))
-	//d.bus.Transfer(byte(0xFF))
-
-	//d.cs.High()
-	//d.bus.Transfer(byte(0xFF))
-	return nil
-}
-
 func (d Device) Write(token byte, buf []byte) error {
 	d.cs.Low()
 
@@ -499,13 +465,8 @@ func (d Device) ReadData(block uint32, offset, count uint16, dst []byte) error {
 	return nil
 }
 
-func (d Device) ReadBlocks(block uint32, dst []byte) error {
-	return d.ReadData(block, 0, 512, dst)
-}
-
 func (d Device) ReadMultiStart(block uint32) error {
 	fmt.Printf("CMD18\r\n")
-	block_ = block
 	// use address if not SDHC card
 	if d.sdCardType != SD_CARD_TYPE_SDHC {
 		block <<= 9
@@ -528,6 +489,16 @@ func (d Device) ReadMulti(buf []byte) error {
 		}
 		buf[i] = r
 	}
+
+	// skip CRC (2byte)
+	d.bus.Transfer(byte(0xFF))
+	d.bus.Transfer(byte(0xFF))
+
+	// wait 0xFE token
+	if err := d.waitStartBlock(); err != nil {
+		return fmt.Errorf("waitStartBlock()")
+	}
+
 	return nil
 }
 
@@ -543,70 +514,96 @@ func (d Device) ReadMultiStop() error {
 	return nil
 }
 
-func (d Device) WriteBlock(blockNumber uint32, src []byte, blocking bool) error {
-	// #if SD_PROTECT_BLOCK_ZERO
-	if blockNumber == 0 {
-		return fmt.Errorf("SD_CARD_ERROR_WRITE_BLOCK_ZERO")
-	}
-	// #endif
-
+func (d Device) WriteMultiStart(block uint32) error {
+	fmt.Printf("CMD25\r\n")
+	// use address if not SDHC card
 	if d.sdCardType != SD_CARD_TYPE_SDHC {
-		blockNumber <<= 9
+		block <<= 9
 	}
-	if d.cmd(24, blockNumber, 0) != 0 {
-		return fmt.Errorf("SD_CARD_ERROR_CMD24")
+	if d.cmd(25, block, 0) != 0 {
+		return fmt.Errorf("CMD25 error")
 	}
-	err := d.writeData_(254, src)
-	if err != nil {
-		return err
+	if err := d.waitStartBlock(); err != nil {
+		return fmt.Errorf("waitStartBlock()")
 	}
-
-	if blocking {
-		err := d.waitNotBusy(600)
-		if err != nil {
-			return fmt.Errorf("SD_CARD_ERROR_WRITE_TIMEOUT")
-		}
-		if d.cmd(13, 0, 0) == 0 {
-			// ok
-			r, err := d.bus.Transfer(byte(0xFF))
-			if err != nil {
-				return err
-			}
-			if r > 0 {
-				return fmt.Errorf("SD_CARD_ERROR_WRITE_PROGRAMMING")
-			}
-		} else {
-			return fmt.Errorf("SD_CARD_ERROR_WRITE_PROGRAMMING")
-		}
-	}
-	d.cs.High()
 
 	return nil
 }
 
-func (d Device) writeData(src []byte) error {
-	err := d.waitNotBusy(600)
-	if err != nil {
-		d.cs.High()
-		return fmt.Errorf("SD_CARD_ERROR_WRITE_MULTIPLE")
+func (d Device) WriteMulti(buf []byte) error {
+	for i := 0; i < 512; i++ {
+		_, err := d.bus.Transfer(buf[i])
+		if err != nil {
+			return err
+		}
 	}
-	return d.writeData_(252, src)
+	return nil
 }
 
-func (d Device) writeData_(token byte, src []byte) error {
-	d.bus.Transfer(token)
-	for i := 0; i < 512; i++ {
-		d.bus.Transfer(src[i])
-	}
-	d.bus.Transfer(byte(0xFF))
+func (d Device) WriteMultiStop() error {
+	defer d.cs.High()
+
+	// stop token
+	d.bus.Transfer(253)
+
+	// skip 1 byte
 	d.bus.Transfer(byte(0xFF))
 
-	r, err := d.bus.Transfer(byte(0xFF))
+	err := d.waitNotBusy(600)
 	if err != nil {
-		return err
+		return nil
 	}
-	if (r & 0x1F) != 0x05 {
-		return fmt.Errorf("SD_CARD_ERROR_WRITE")
+
+	return nil
+}
+
+func (d Device) WriteBlock(block uint32, src []byte) error {
+	return d.WriteData(block, 0, 512, src)
+}
+
+func (d Device) WriteData(block uint32, offset, count uint16, src []byte) error {
+	if count == 0 {
+		return nil
+	}
+	if (count + offset) > 512 {
+		return fmt.Errorf("count + offset > 512")
+	}
+	{
+		fmt.Printf("CMD24\r\n")
+		// use address if not SDHC card
+		if d.sdCardType != SD_CARD_TYPE_SDHC {
+			block <<= 9
+		}
+		if d.cmd(24, block, 0) != 0 {
+			return fmt.Errorf("CMD24 error")
+		}
+
+		// wait 1 byte?
+		token := byte(0xFE)
+		d.bus.Transfer(token)
+
+		for i := 0; i < 512; i++ {
+			d.bus.Transfer(src[i])
+		}
+
+		// send dummy CRC (2 byte)
+		d.bus.Transfer(byte(0xFF))
+		d.bus.Transfer(byte(0xFF))
+
+		// Data Resp.
+		r, err := d.bus.Transfer(byte(0xFF))
+		if err != nil {
+			return err
+		}
+		if (r & 0x1F) != 0x05 {
+			return fmt.Errorf("SD_CARD_ERROR_WRITE")
+		}
+
+		// wait no busy
+		err = d.waitNotBusy(600)
+		if err != nil {
+			return fmt.Errorf("SD_CARD_ERROR_WRITE_TIMEOUT")
+		}
 	}
 
 	return nil
@@ -649,12 +646,32 @@ func (d Device) WriteStop() error {
 	return nil
 }
 
+var rbuf = make([]byte, 512)
+
 func (dev *Device) WriteAt(buf []byte, addr int64) (n int, err error) {
-	return 0, nil
+	block := uint64(addr)
+	// use address if not SDHC card
+	if dev.sdCardType == SD_CARD_TYPE_SDHC {
+		block >>= 9
+	}
+	_, err = dev.ReadAt(rbuf, addr)
+	if err != nil {
+		return 0, err
+	}
+
+	for i := 0; i < len(buf); i++ {
+		rbuf[i+int(addr)] = buf[i]
+	}
+	err = dev.WriteBlock(uint32(block), rbuf)
+	if err != nil {
+		return 0, err
+	}
+	return len(buf), nil
 }
 
 func (dev *Device) ReadAt(buf []byte, addr int64) (int, error) {
 	block := uint64(addr)
+	// use address if not SDHC card
 	if dev.sdCardType == SD_CARD_TYPE_SDHC {
 		block >>= 9
 	}
