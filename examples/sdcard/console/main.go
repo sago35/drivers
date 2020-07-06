@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"machine"
 	"time"
 
@@ -21,14 +20,6 @@ func main() {
 		Mode:      0, // phase=0, polarity=0
 	})
 	sd := sdcard.New(machine.SPI0, machine.D4)
-
-	err := sd.Configure()
-	if err != nil {
-		fmt.Printf("%s\r\n", err.Error())
-		for {
-			time.Sleep(time.Hour)
-		}
-	}
 
 	go RunFor(&sd)
 
