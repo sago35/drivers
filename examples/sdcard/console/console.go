@@ -87,7 +87,13 @@ const (
 func RunFor(device *sdcard.Device) {
 
 	dev = device
-	dev.Configure()
+	err := dev.Configure()
+	if err != nil {
+		for {
+			fmt.Printf("error: %s\r\n", err.Error())
+			time.Sleep(5 * time.Second)
+		}
+	}
 
 	prompt()
 
