@@ -284,7 +284,7 @@ func (d Device) waitNotBusy(timeoutMs int) error {
 func (d Device) waitStartBlock() error {
 	status := byte(0xFF)
 
-	for i := 0; i < 300; i++ {
+	for i := 0; i < 3000; i++ {
 		var err error
 		status, err = d.bus.Transfer(byte(0xFF))
 		if err != nil {
@@ -294,7 +294,7 @@ func (d Device) waitStartBlock() error {
 		if status != 0xFF {
 			break
 		}
-		time.Sleep(1 * time.Millisecond)
+		time.Sleep(100 * time.Microsecond)
 	}
 
 	if status != 254 {
