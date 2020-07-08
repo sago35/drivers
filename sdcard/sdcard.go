@@ -345,7 +345,8 @@ func (d Device) readRegister(cmd uint8, dst []byte) error {
 	return nil
 }
 
-func (d Device) ReadData(block uint32, offset, count uint16, dst []byte) error {
+func (d Device) ReadData(block uint32, offset uint16, dst []byte) error {
+	count := uint16(len(dst))
 	if count == 0 {
 		return nil
 	}
@@ -614,9 +615,53 @@ func (dev *Device) ReadAt(buf []byte, addr int64) (int, error) {
 	if dev.sdCardType == SD_CARD_TYPE_SDHC {
 		block >>= 9
 	}
-	err := dev.ReadData(uint32(block), 0, uint16(len(buf)), buf)
-	if err != nil {
-		return 0, nil
+
+	start := uint32(0)
+	end := uint32(0)
+	offset := uint32(addr % 512)
+	remain := uint32(len(buf))
+
+	// If data starts in the middle, read it
+	if 0 < offset {
+		if offset+remain <= 512 {
+			end = 512
+		} else {
+			end = 512 - offset
+		}
+		err := dev.ReadData(uint32(block), uint16(offset), buf[start:end])
+		if err != nil {
+			return 0, nil
+		}
+		remain -= end - start
+		start += end - start
+		block++
 	}
+
+	offset = 0
+
+	// If more than 512 bytes left, read in blocks
+	for 512 <= remain {
+		end = start + 512
+		err := dev.ReadData(uint32(block), uint16(offset), buf[start:end])
+		if err != nil {
+			return 0, nil
+		}
+		remain -= end - start
+		start += end - start
+		block++
+	}
+
+	// Read to the end
+	if 0 < remain {
+		end = start + remain
+		err := dev.ReadData(uint32(block), uint16(offset), buf[start:end])
+		if err != nil {
+			return 0, nil
+		}
+		remain -= end - start
+		start += end - start
+		block++
+	}
+
 	return len(buf), nil
 }
