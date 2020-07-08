@@ -645,7 +645,7 @@ func (dev *Device) WriteAt(buf []byte, addr int64) (n int, err error) {
 	}
 
 	for i := 0; i < len(buf); i++ {
-		rbuf[i+int(addr)] = buf[i]
+		rbuf[(i+int(addr))%512] = buf[i]
 	}
 	err = dev.WriteBlock(uint32(block), rbuf)
 	if err != nil {
