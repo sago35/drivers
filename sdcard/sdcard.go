@@ -509,28 +509,51 @@ func (d Device) WriteMultiStart(block uint32) error {
 	if d.cmd(25, block, 0) != 0 {
 		return fmt.Errorf("CMD25 error")
 	}
-	if err := d.waitStartBlock(); err != nil {
-		return fmt.Errorf("waitStartBlock()")
-	}
+
+	// skip 1 byte
+	d.bus.Transfer(byte(0xFF))
 
 	return nil
 }
 
 func (d Device) WriteMulti(buf []byte) error {
+	// send Data Token for CMD25
+	d.bus.Transfer(byte(0xFC))
+
 	for i := 0; i < 512; i++ {
 		_, err := d.bus.Transfer(buf[i])
 		if err != nil {
 			return err
 		}
 	}
+
+	// send dummy CRC (2 byte)
+	d.bus.Transfer(byte(0xFF))
+	d.bus.Transfer(byte(0xFF))
+
+	// Data Resp.
+	r, err := d.bus.Transfer(byte(0xFF))
+	if err != nil {
+		return err
+	}
+	if (r & 0x1F) != 0x05 {
+		return fmt.Errorf("SD_CARD_ERROR_WRITE")
+	}
+
+	// wait no busy
+	err = d.waitNotBusy(600)
+	if err != nil {
+		return fmt.Errorf("SD_CARD_ERROR_WRITE_TIMEOUT")
+	}
+
 	return nil
 }
 
 func (d Device) WriteMultiStop() error {
 	defer d.cs.High()
 
-	// stop token
-	d.bus.Transfer(253)
+	// Stop Tran token for CMD25
+	d.bus.Transfer(0xFD)
 
 	// skip 1 byte
 	d.bus.Transfer(byte(0xFF))
@@ -591,42 +614,6 @@ func (d Device) WriteData(block uint32, offset, count uint16, src []byte) error 
 		}
 	}
 
-	return nil
-}
-
-func (d Device) WriteStart(blockNumber uint32, eraseCount uint32) error {
-	// #if SD_PROTECT_BLOCK_ZERO
-	if blockNumber == 0 {
-		d.cs.High()
-		return fmt.Errorf("SD_CARD_ERROR_WRITE_BLOCK_ZERO")
-	}
-	// #endif
-	// send pre-erase count
-	if d.cardAcmd(23, eraseCount) != 0 {
-		d.cs.High()
-		return fmt.Errorf("SD_CARD_ERROR_ACMD23")
-	}
-	// use address if not SDHC card
-	if d.sdCardType != SD_CARD_TYPE_SDHC {
-		blockNumber <<= 9
-	}
-	if d.cmd(25, blockNumber, 0) != 0 {
-		d.cs.High()
-		return fmt.Errorf("SD_CARD_ERROR_CMD25")
-	}
-	return nil
-}
-
-func (d Device) WriteStop() error {
-	err := d.waitNotBusy(600)
-	if err != nil {
-		return nil
-	}
-	d.bus.Transfer(253)
-	err = d.waitNotBusy(600)
-	if err != nil {
-		return nil
-	}
 	d.cs.High()
 	return nil
 }
@@ -634,14 +621,46 @@ func (d Device) WriteStop() error {
 var rbuf = make([]byte, 512)
 
 func (dev *Device) WriteAt(buf []byte, addr int64) (n int, err error) {
+	if len(buf) <= 512 {
+		return dev.WriteAtSB(buf, addr)
+	}
+	return dev.WriteAtMB(buf, addr)
+}
+
+func (dev *Device) WriteAtMB(buf []byte, addr int64) (n int, err error) {
 	block := uint64(addr)
 	// use address if not SDHC card
 	if dev.sdCardType == SD_CARD_TYPE_SDHC {
 		block >>= 9
 	}
-	_, err = dev.ReadAt(rbuf, addr)
-	if err != nil {
-		return 0, err
+
+	if (len(buf) % 512) != 0 {
+		return 0, fmt.Errorf("length % 512 != 0")
+	}
+
+	dev.WriteMultiStart(uint32(block))
+
+	for i := 0; i < len(buf); i += 512 {
+		dev.WriteMulti(buf[i : i+512])
+	}
+
+	dev.WriteMultiStop()
+
+	return len(buf), nil
+}
+
+func (dev *Device) WriteAtSB(buf []byte, addr int64) (n int, err error) {
+	block := uint64(addr)
+	// use address if not SDHC card
+	if dev.sdCardType == SD_CARD_TYPE_SDHC {
+		block >>= 9
+	}
+
+	if len(buf) < 512 {
+		_, err = dev.ReadAt(rbuf, addr)
+		if err != nil {
+			return 0, err
+		}
 	}
 
 	for i := 0; i < len(buf); i++ {
