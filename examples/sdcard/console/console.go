@@ -26,13 +26,14 @@ var (
 	dev *sdcard.Device
 
 	commands map[string]cmdfunc = map[string]cmdfunc{
-		"":      cmdfunc(noop),
-		"dbg":   cmdfunc(dbg),
-		"erase": cmdfunc(erase),
-		"lsblk": cmdfunc(lsblk),
-		"write": cmdfunc(write),
-		"xxd":   cmdfunc(xxd),
-		"xxd2":  cmdfunc(xxd2),
+		"":       cmdfunc(noop),
+		"dbg":    cmdfunc(dbg),
+		"erase":  cmdfunc(erase),
+		"lsblk":  cmdfunc(lsblk),
+		"write":  cmdfunc(write),
+		"write2": cmdfunc(write2),
+		"xxd":    cmdfunc(xxd),
+		"xxd2":   cmdfunc(xxd2),
 	}
 
 	his history
@@ -310,9 +311,29 @@ func write(argv []string) {
 		buf = append(buf, byte(b))
 	}
 
-	if _, err = dev.WriteAt(buf, int64(addr)); err != nil {
+	if _, err = dev.WriteAtSB(buf, int64(addr)); err != nil {
 		println("Write error: " + err.Error() + "\r\n")
 	}
+}
+
+func write2(argv []string) {
+
+	buf := make([]byte, 1024)
+
+	d5.High()
+	for i := range buf {
+		if i < 512 {
+			buf[i] = byte(i)
+		} else {
+			buf[i] = byte(512 - 1 - i)
+		}
+		//buf[i] = 0xFF
+	}
+
+	if _, err := dev.WriteAt(buf, int64(0)); err != nil {
+		println("Write error: " + err.Error() + "\r\n")
+	}
+	d5.Low()
 }
 
 func xxd(argv []string) {
