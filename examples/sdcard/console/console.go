@@ -32,6 +32,7 @@ var (
 		"lsblk": cmdfunc(lsblk),
 		"write": cmdfunc(write),
 		"xxd":   cmdfunc(xxd),
+		"xxd2":  cmdfunc(xxd2),
 	}
 
 	his history
@@ -354,6 +355,56 @@ func xxd(argv []string) {
 		fmt.Printf("xxd err : %s\r\n", err.Error())
 	}
 	xxdfprint(os.Stdout, uint32(addr), buf)
+}
+
+func xxd2(argv []string) {
+	var err error
+	var addr uint64 = 0x0
+	var size int = 64
+	switch len(argv) {
+	case 3:
+		if size, err = strconv.Atoi(argv[2]); err != nil {
+			println("Invalid size argument: " + err.Error() + "\r\n")
+			return
+		}
+		//if size > storageBufLen*10 || size < 1 {
+		//	fmt.Printf("Size of hexdump must be greater than 0 and less than %d\r\n", storageBufLen*10)
+		//	return
+		//}
+		fallthrough
+	case 2:
+		if addr, err = strconv.ParseUint(argv[1], 16, 32); err != nil {
+			println("Invalid address: " + err.Error() + "\r\n")
+			return
+		}
+		fallthrough
+	case 1:
+		// no args supplied, so nothing to do here, just use the defaults
+	default:
+		println("usage: xxd <hex address, ex: 0xA0> <size of hexdump in bytes>\r\n")
+		return
+	}
+	d5.High()
+	err = dev.ReadMultiStart(uint32(addr >> 9))
+	if err != nil {
+		fmt.Printf("xxd2 err : %s\r\n", err.Error())
+	}
+	d5.Low()
+
+	buf := make([]byte, 512)
+	for i := uint32(0); i < uint32(size); i += 512 {
+		d5.High()
+		dev.ReadMulti(buf)
+		d5.Low()
+		xxdfprint(os.Stdout, uint32(addr)+i, buf)
+	}
+
+	d5.High()
+	err = dev.ReadMultiStop()
+	if err != nil {
+		fmt.Printf("xxd2 err : %s\r\n", err.Error())
+	}
+	d5.Low()
 }
 
 func xxdfprint(w io.Writer, offset uint32, b []byte) {
