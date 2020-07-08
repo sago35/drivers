@@ -31,9 +31,6 @@ const (
 )
 
 var (
-	block_            uint32
-	inBlock_          uint32
-	offset_           uint16
 	partialBlockRead_ uint32
 )
 
@@ -211,8 +208,6 @@ func (d Device) cardAcmd(cmd byte, arg uint32) byte {
 }
 
 func (d Device) cmd(cmd byte, arg uint32, crc byte) byte {
-	d.readEnd()
-
 	d.cs.Low()
 
 	if cmd != 12 {
@@ -249,21 +244,6 @@ func (d Device) cmd(cmd byte, arg uint32, crc byte) byte {
 	d.bus.Transfer(byte(0xFF))
 
 	return 0xFF // -1
-}
-
-func (d Device) readEnd() {
-	if inBlock_ > 0 {
-
-		for {
-			offset_++
-			if offset_ < 514 {
-				break
-			}
-			d.bus.Transfer(byte(0xFF))
-		}
-		d.cs.High()
-		inBlock_ = 0
-	}
 }
 
 func (d Device) waitNotBusy(timeoutMs int) error {
@@ -303,43 +283,6 @@ func (d Device) waitStartBlock() error {
 	}
 
 	return nil
-}
-
-func (d Device) Write(token byte, buf []byte) error {
-	d.cs.Low()
-
-	d.bus.Transfer(token)
-	d.bus.Tx(buf, nil)
-	d.bus.Transfer(byte(0xFF))
-	d.bus.Transfer(byte(0xFF))
-
-	// check the response
-	b, err := d.bus.Transfer(0xFF)
-	if err != nil {
-		return err
-	}
-	if (b & 0x1F) != 0x05 {
-		d.cs.High()
-		d.bus.Transfer(byte(0xFF))
-		return nil
-	}
-
-	// wait for write to finish
-	for {
-		b, err := d.bus.Transfer(0xFF)
-		if err != nil {
-			return err
-		}
-		if b != 0x00 {
-			break
-		}
-	}
-
-	d.cs.High()
-	d.bus.Transfer(byte(0xFF))
-	return nil
-}
-func (d Device) writeToken() {
 }
 
 func (d Device) Erase(firstBlock, lastBlock uint32) error {
@@ -402,10 +345,6 @@ func (d Device) readRegister(cmd uint8, dst []byte) error {
 	return nil
 }
 
-func (d Device) ReadBlock(block uint32, dst []byte) error {
-	return d.ReadData(block, 0, 512, dst)
-}
-
 func (d Device) ReadData(block uint32, offset, count uint16, dst []byte) error {
 	if count == 0 {
 		return nil
@@ -413,25 +352,19 @@ func (d Device) ReadData(block uint32, offset, count uint16, dst []byte) error {
 	if (count + offset) > 512 {
 		return fmt.Errorf("count + offset > 512")
 	}
-	//if inBlock_ != 0 || block != block_ || offset < offset_
-	{
-		block_ = block
-		// use address if not SDHC card
-		if d.sdCardType != SD_CARD_TYPE_SDHC {
-			block <<= 9
-		}
-		if d.cmd(17, block, 0) != 0 {
-			return fmt.Errorf("CMD17 error")
-		}
-		if err := d.waitStartBlock(); err != nil {
-			return fmt.Errorf("waitStartBlock()")
-		}
-		offset_ = 0
-		inBlock_ = 1
+	// use address if not SDHC card
+	if d.sdCardType != SD_CARD_TYPE_SDHC {
+		block <<= 9
+	}
+	if d.cmd(17, block, 0) != 0 {
+		return fmt.Errorf("CMD17 error")
+	}
+	if err := d.waitStartBlock(); err != nil {
+		return fmt.Errorf("waitStartBlock()")
 	}
 
 	// skip data before offset
-	for ; offset_ < offset; offset_++ {
+	for i := 0; i < int(offset); i++ {
 		d.bus.Transfer(byte(0xFF))
 	}
 	// transfer data
@@ -443,13 +376,15 @@ func (d Device) ReadData(block uint32, offset, count uint16, dst []byte) error {
 		dst[i] = r
 	}
 	// skip data after offset + count
-	for i := count; i < 512; i++ {
+	for i := offset + count; i < 512; i++ {
 		d.bus.Transfer(byte(0xFF))
 	}
 
-	offset_ += count
+	// skip CRC (2byte)
+	d.bus.Transfer(byte(0xFF))
+	d.bus.Transfer(byte(0xFF))
 
-	d.readEnd()
+	d.cs.High()
 
 	return nil
 }
