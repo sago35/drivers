@@ -665,3 +665,30 @@ func (dev *Device) ReadAt(buf []byte, addr int64) (int, error) {
 
 	return len(buf), nil
 }
+
+func (dev *Device) Size() int64 {
+	return 63864569856
+}
+
+func (dev *Device) WriteBlockSize() int64 {
+	return 512
+}
+
+func (dev *Device) EraseBlockSize() int64 {
+	return 512
+}
+
+func (dev *Device) EraseBlocks(start, len int64) error {
+	dev.WriteMultiStart(uint32(start))
+
+	for i := range rbuf {
+		rbuf[i] = 0
+	}
+
+	for i := 0; i < int(len); i++ {
+		dev.WriteMulti(rbuf)
+	}
+
+	dev.WriteMultiStop()
+	return nil
+}
