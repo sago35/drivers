@@ -30,7 +30,7 @@ func (d *Device) GetDNS(domain string) (string, error) {
 		return "", errors.New("Invalid domain lookup result")
 	}
 	res := strings.Split(r[1], "\r\n")
-	return res[0], nil
+	return strconv.Unquote(res[0])
 }
 
 // ConnectTCPSocket creates a new TCP socket connection for the ESP8266/ESP32.
