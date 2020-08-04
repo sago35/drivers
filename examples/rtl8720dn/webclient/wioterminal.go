@@ -10,8 +10,8 @@ func init() {
 	spi = machine.SPI1
 	spi.Configure(machine.SPIConfig{
 		SCK:       machine.SCK1,
-		MOSI:      machine.MOSI1,
-		MISO:      machine.MISO1,
+		SDO:       machine.SDO1,
+		SDI:       machine.SDI1,
 		Frequency: 40000000,
 		LSBFirst:  false,
 		Mode:      0, // phase=0, polarity=0
