@@ -20,7 +20,8 @@ var ssid = ""
 var pass = ""
 
 // IP address of the server aka "hub". Replace with your own info.
-var server = "tinygo.org"
+//var server = "tinygo.org"
+var server = "192.168.1.110"
 
 var (
 	console = machine.UART0
@@ -29,6 +30,7 @@ var (
 	adaptor *rtl8720dn.Device
 
 	chipPu    machine.Pin
+	irq0      machine.Pin
 	syncPin   machine.Pin
 	csPin     machine.Pin
 	uartRxPin machine.Pin
@@ -50,7 +52,9 @@ func main() {
 	led := machine.LED
 	led.Configure(machine.PinConfig{Mode: machine.PinOutput})
 
-	adaptor = rtl8720dn.New(spi, chipPu, syncPin, csPin, uartRxPin)
+	//time.Sleep(10 * time.Second)
+	//fmt.Printf("--\r\n")
+	adaptor = rtl8720dn.New(spi, chipPu, irq0, syncPin, csPin, uartRxPin)
 	adaptor.Configure(&rtl8720dn.Config{})
 	net.ActiveDevice = adaptor
 
@@ -70,20 +74,23 @@ func loop() {
 			if err != nil {
 				println("Read error: " + err.Error())
 			} else {
-				print(string(buf[0:n]))
+				if false {
+					print(string(buf[0:n]))
+				}
 			}
 		}
 		if err != nil {
 			println("Read error2: " + err.Error())
 		}
 
-		err = conn.Close()
-		if err != nil {
-			println("Read error3: " + err.Error())
-		}
+		//fmt.Printf("--**--\r\n")
+		//err = conn.Close()
+		//if err != nil {
+		//	println("Read error3: " + err.Error())
+		//}
 		//rtl8720dn.NextSocketCh()
 	}
-	if time.Now().Sub(lastRequestTime).Milliseconds() >= 10000 {
+	if time.Now().Sub(lastRequestTime).Milliseconds() >= 100 {
 		cnt++
 		fmt.Printf("-- try %d --\r\n", cnt)
 		makeHTTPRequest()
@@ -136,7 +143,15 @@ func readLine(conn *net.TCPSerialConn) string {
 func connectToAP() {
 	time.Sleep(2 * time.Second)
 	message("Connecting to " + ssid)
-	adaptor.SetPassphrase(ssid, pass)
+	for {
+		err := adaptor.SetPassphrase(ssid, pass)
+		if err != nil {
+			fmt.Printf("SetPassphrase: %s\r\n", err.Error())
+		} else {
+			break
+		}
+		time.Sleep(1 * time.Second)
+	}
 	for st, _ := adaptor.GetConnectionStatus(); st != rtl8720dn.StatusConnected; {
 		message("Connection status: " + st.String())
 		time.Sleep(1 * time.Second)

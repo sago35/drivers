@@ -6,54 +6,61 @@ import (
 	"time"
 )
 
-func (d *Device) write8(b byte) {
-	// take the chip select low to select the device
-	d.csPin.Low()
+//func (d *Device) write8(b byte) {
+//	// take the chip select low to select the device
+//	d.csPin.Low()
+//
+//	d.bus.Bus.CTRLB.ClearBits(sam.SERCOM_SPIS_CTRLB_RXEN)
+//
+//	for !d.bus.Bus.INTFLAG.HasBits(sam.SERCOM_SPIS_INTFLAG_DRE) {
+//	}
+//	d.bus.Bus.DATA.Set(uint32(b))
+//
+//	d.bus.Bus.CTRLB.SetBits(sam.SERCOM_SPIS_CTRLB_RXEN)
+//	for d.bus.Bus.SYNCBUSY.HasBits(sam.SERCOM_SPIS_SYNCBUSY_CTRLB) {
+//	}
+//
+//	// take the chip select high to de-select
+//	d.csPin.High()
+//}
+//
+//func (d *Device) write16(data uint16) {
+//	d.bus.Bus.CTRLB.ClearBits(sam.SERCOM_SPIS_CTRLB_RXEN)
+//
+//	for !d.bus.Bus.INTFLAG.HasBits(sam.SERCOM_SPIS_INTFLAG_DRE) {
+//	}
+//	d.bus.Bus.DATA.Set(uint32(uint8(data >> 8)))
+//	for !d.bus.Bus.INTFLAG.HasBits(sam.SERCOM_SPIS_INTFLAG_DRE) {
+//	}
+//	d.bus.Bus.DATA.Set(uint32(uint8(data)))
+//
+//	d.bus.Bus.CTRLB.SetBits(sam.SERCOM_SPIS_CTRLB_RXEN)
+//	for d.bus.Bus.SYNCBUSY.HasBits(sam.SERCOM_SPIS_SYNCBUSY_CTRLB) {
+//	}
+//}
+//
+//func (d *Device) spi_transfer_cs(b byte) byte {
+//	// take the chip select low to select the device
+//	d.csPin.Low()
+//
+//	v, _ := d.bus.Transfer(b)
+//
+//	// take the chip select high to de-select
+//	d.csPin.High()
+//
+//	return v
+//}
+//
+//func (d *Device) spi_transfer16_cs(data uint16) uint16 {
+//	r := uint16(d.spi_transfer_cs(uint8(data>>8))) << 8
+//	r |= uint16(d.spi_transfer_cs(uint8(data) & 0xFF))
+//	return r
+//}
 
-	d.bus.Bus.CTRLB.ClearBits(sam.SERCOM_SPIS_CTRLB_RXEN)
+func (d *Device) spi_transfer8_8(v, v2 uint8) uint16 {
+	r := uint16(d.spi_transfer(v)) << 8
+	r |= uint16(d.spi_transfer(v2))
 
-	for !d.bus.Bus.INTFLAG.HasBits(sam.SERCOM_SPIS_INTFLAG_DRE) {
-	}
-	d.bus.Bus.DATA.Set(uint32(b))
-
-	d.bus.Bus.CTRLB.SetBits(sam.SERCOM_SPIS_CTRLB_RXEN)
-	for d.bus.Bus.SYNCBUSY.HasBits(sam.SERCOM_SPIS_SYNCBUSY_CTRLB) {
-	}
-
-	// take the chip select high to de-select
-	d.csPin.High()
-}
-
-func (d *Device) write16(data uint16) {
-	d.bus.Bus.CTRLB.ClearBits(sam.SERCOM_SPIS_CTRLB_RXEN)
-
-	for !d.bus.Bus.INTFLAG.HasBits(sam.SERCOM_SPIS_INTFLAG_DRE) {
-	}
-	d.bus.Bus.DATA.Set(uint32(uint8(data >> 8)))
-	for !d.bus.Bus.INTFLAG.HasBits(sam.SERCOM_SPIS_INTFLAG_DRE) {
-	}
-	d.bus.Bus.DATA.Set(uint32(uint8(data)))
-
-	d.bus.Bus.CTRLB.SetBits(sam.SERCOM_SPIS_CTRLB_RXEN)
-	for d.bus.Bus.SYNCBUSY.HasBits(sam.SERCOM_SPIS_SYNCBUSY_CTRLB) {
-	}
-}
-
-func (d *Device) spi_transfer_cs(b byte) byte {
-	// take the chip select low to select the device
-	d.csPin.Low()
-
-	v, _ := d.bus.Transfer(b)
-
-	// take the chip select high to de-select
-	d.csPin.High()
-
-	return v
-}
-
-func (d *Device) spi_transfer16_cs(data uint16) uint16 {
-	r := uint16(d.spi_transfer_cs(uint8(data>>8))) << 8
-	r |= uint16(d.spi_transfer_cs(uint8(data) & 0xFF))
 	return r
 }
 
@@ -62,21 +69,48 @@ func (d *Device) spi_transfer(b byte) byte {
 	return v
 }
 
+func (d *Device) spi_receive(buf []byte) {
+	if len(buf) < 1 {
+		for i := range buf {
+			buf[i] = d.spi_transfer(SPT_TAG_DMY)
+		}
+		return
+	}
+
+	d.bus.Bus.DATA.Set(SPT_TAG_DMY)
+	for !d.bus.Bus.INTFLAG.HasBits(sam.SERCOM_SPIM_INTFLAG_RXC) {
+	}
+	buf[0] = byte(d.bus.Bus.DATA.Get())
+	d.bus.Bus.DATA.Set(SPT_TAG_DMY)
+
+	for i := 1; i < len(buf)-1; i++ {
+		for !d.bus.Bus.INTFLAG.HasBits(sam.SERCOM_SPIM_INTFLAG_RXC) {
+		}
+		buf[i] = byte(d.bus.Bus.DATA.Get())
+		d.bus.Bus.DATA.Set(SPT_TAG_DMY)
+	}
+	for !d.bus.Bus.INTFLAG.HasBits(sam.SERCOM_SPIM_INTFLAG_RXC) {
+	}
+	buf[len(buf)-1] = byte(d.bus.Bus.DATA.Get())
+}
+
+//// Transfer writes/reads a single byte using the SPI interface.
+//func (spi SPI) Transfer(w byte) (byte, error) {
+//	// write data
+//	spi.Bus.DATA.Set(uint32(w))
+//
+//	// wait for receive
+//	for !spi.Bus.INTFLAG.HasBits(sam.SERCOM_SPIM_INTFLAG_RXC) {
+//	}
+//
+//	// return data
+//	return byte(spi.Bus.DATA.Get()), nil
+//}
+
 func (d *Device) spi_transfer16(data uint16) uint16 {
 	r := uint16(d.spi_transfer(uint8(data>>8))) << 8
 	r |= uint16(d.spi_transfer(uint8(data) & 0xFF))
 	return r
-}
-
-func (d *Device) at_wait_io(b bool) error {
-	// TODO: 引数は後で考える
-	for i := 0; i < 500; i++ {
-		if d.syncPin.Get() == b {
-			return nil
-		}
-		time.Sleep(1 * time.Millisecond)
-	}
-	return fmt.Errorf("WaitIO time out")
 }
 
 const (
@@ -96,167 +130,155 @@ const (
 )
 
 func (d *Device) at_spi_write(buf []byte) (int, error) {
-	r := 0
-
-	/* wait slave ready to transfer data */
-	time.Sleep(_WAIT_SLAVE_READY_US * time.Microsecond)
-
-	d.spi_transfer16_cs((SPT_TAG_PRE << 8) | SPT_TAG_WR)
-	d.spi_transfer16_cs(uint16(len(buf)))
-
-	/* wait slave ready to transfer data */
-	err := d.at_wait_io(SPI_STATE_MISO)
+	fmt.Printf("w:%d: %q\r\n", len(buf), string(buf))
+	err := d.spi_wait_dir(SPI_STATE_MOSI)
 	if err != nil {
-		//fmt.Printf("w111 %s\r\n", err.Error())
+		return -1, fmt.Errorf("w000 %s", err.Error())
 	}
 
-	v := d.spi_transfer_cs(SPT_TAG_DMY)
+	d.csPin.Low()
+	d.spi_transfer8_8(SPT_TAG_PRE, SPT_TAG_WR)
+	d.spi_transfer16(uint16(len(buf)))
+
+	d.csPin.High()
+	err = d.spi_wait_dir(SPI_STATE_MISO)
+	if err != nil {
+		return -1, fmt.Errorf("w111 %s", err.Error())
+	}
+
+	d.csPin.Low()
+
+	v := d.spi_transfer(SPT_TAG_DMY)
 	if v != SPT_TAG_ACK {
 		/* device too slow between TAG_PRE and TAG_ACK */
-		return -1, fmt.Errorf("No ACK, R%02X", v)
+		return -1, fmt.Errorf("3 No ACK, WR%02X", v)
 	}
 
-	v = d.spi_transfer_cs(SPT_TAG_DMY)
-	if v != SPT_ERR_OK && v != SPT_ERR_DEC_SPC {
-		return -1000 - int(v), fmt.Errorf("device not ready")
+	v = d.spi_transfer(SPT_TAG_DMY)
+	if v != SPT_ERR_OK {
+		/* device too slow between TAG_PRE and TAG_ACK */
+		return -1, fmt.Errorf("4 No ACK, WR%02X", v)
 	}
 
-	l := d.spi_transfer16_cs((SPT_TAG_DMY << 8) | SPT_TAG_DMY)
+	l := d.spi_transfer8_8(SPT_TAG_DMY, SPT_TAG_DMY)
 
-	err = d.at_wait_io(SPI_STATE_MOSI)
+	d.csPin.High()
+
+	err = d.spi_wait_dir(SPI_STATE_MOSI)
 	if err != nil {
-		//fmt.Printf("w222 %s\r\n", err.Error())
+		fmt.Printf("w222 %s\r\n", err.Error())
 	}
 
-	// TODO: l or buflen?
 	d.csPin.Low()
-	for i := uint16(0); i < l; i++ {
-		d.spi_transfer(buf[i])
+	if 0 < l {
+		for i := uint16(0); i < l; i++ {
+			d.spi_transfer(buf[i])
+		}
 	}
 	d.csPin.High()
 
-	err = d.at_wait_io(SPI_STATE_MOSI)
-	if err != nil {
-		//fmt.Printf("w333 %s\r\n", err.Error())
+	return int(l), nil
+}
+
+func (d *Device) spi_wait_dir(b bool) error {
+	// TODO: 引数は後で考える
+	// TODO: loop_wait もあとで考える (とりあえず 500ms)
+
+	t := time.Now()
+	for i := 0; i < 5000*10; i++ {
+		if d.syncPin.Get() == b {
+			return nil
+		}
+		//time.Sleep(1 * time.Millisecond)
+		for time.Now().Sub(t).Nanoseconds() < 100*1000 {
+		}
 	}
+	return fmt.Errorf("WaitDir time out")
+}
 
-	/*
-	  Serial.print("Trans ");
-	  Serial.print(l);
-	  Serial.println("B");
-	*/
+func (d *Device) waitMicroSecond(micro int64) {
+	t := time.Now()
+	for time.Now().Sub(t).Microseconds() < micro {
+	}
+}
 
-	/* success transfer l bytes */
-	r = int(l)
+func (d *Device) spi_exist_data() bool {
+	return d.irq0.Get()
+}
 
-	return r, nil
+func (d *Device) spi_wait_exist_data(waitMicroSeconds int64) bool {
+	t := time.Now()
+	for i := 0; i < 5000*10; i++ {
+		if d.irq0.Get() {
+			return true
+		}
+		//time.Sleep(1 * time.Millisecond)
+		for time.Now().Sub(t).Nanoseconds() < waitMicroSeconds*1000 {
+		}
+	}
+	return false
 }
 
 func (d *Device) at_spi_read(buf []byte) (int, error) {
-	r := 0
+	if !d.spi_exist_data() {
+		return 0, nil
+	}
+	//if !d.spi_wait_exist_data(1000) {
+	//	return 0, nil
+	//}
 
-	/* wait slave ready to transfer data */
-	time.Sleep(_WAIT_SLAVE_READY_US * time.Microsecond)
+	err := d.spi_wait_dir(SPI_STATE_MOSI)
+	if err != nil {
+		fmt.Printf("r000 %s\r\n", err.Error())
+	}
 
-	d.spi_transfer16_cs((SPT_TAG_PRE << 8) | SPT_TAG_RD)
-	d.spi_transfer16_cs(uint16(len(buf)))
+	d.csPin.Low()
+	d.spi_transfer8_8(SPT_TAG_PRE, SPT_TAG_RD)
+	d.spi_transfer16(uint16(len(buf)))
+	d.csPin.High()
 
-	/* wait slave ready to transfer data */
-	err := d.at_wait_io(SPI_STATE_MISO)
+	err = d.spi_wait_dir(SPI_STATE_MISO)
 	if err != nil {
 		fmt.Printf("r111 %s\r\n", err.Error())
 	}
 
-	v := d.spi_transfer_cs(SPT_TAG_DMY)
-	if v != SPT_TAG_ACK {
+	d.csPin.Low()
+	defer d.csPin.High()
+
+	v := byte(0)
+	iMax := 100
+	for i := 0; i < iMax; i++ {
+		v := d.spi_transfer(SPT_TAG_DMY)
+		if v != SPT_TAG_ACK {
+			/* device too slow between TAG_PRE and TAG_ACK */
+			if i == iMax-1 {
+				return -1, fmt.Errorf("3 No ACK, R%02X", v)
+			}
+			fmt.Printf("3 No ACK, R%02X %d\r\n", v, i)
+			continue
+		}
+		break
+	}
+
+	v = d.spi_transfer(SPT_TAG_DMY)
+	if v != SPT_ERR_OK {
 		/* device too slow between TAG_PRE and TAG_ACK */
-		return -1, fmt.Errorf("No ACK, R%02X", v)
+		return -1, fmt.Errorf("4 No ACK, R%02X", v)
 	}
 
-	v = d.spi_transfer_cs(SPT_TAG_DMY)
-	if v != SPT_ERR_OK && v != SPT_ERR_DEC_SPC {
-		return -1000 - int(v), fmt.Errorf("device not ready")
-	}
-
-	l := d.spi_transfer16_cs((SPT_TAG_DMY << 8) | SPT_TAG_DMY)
-	if false {
-		//err = d.at_wait_io(SPI_STATE_MOSI)
-		//if err != nil {
-		//	//fmt.Printf("r222 %s\r\n", err.Error())
-		//}
-	} else {
-		wait500ms := time.Now()
-		//s := wait500ms
-
-		// timeout 500ms
-		for {
-			if time.Now().Sub(wait500ms).Milliseconds() < 500 {
-				if d.syncPin.Get() == SPI_STATE_MOSI {
-					//for time.Now().Sub(s).Microseconds() < 10 {
-					//	s = time.Now()
-					//}
-					break
-				}
-			} else {
-				fmt.Printf("r222\r\n")
-				break
-			}
-			//for time.Now().Sub(s).Microseconds() < 10 {
-			//	s = time.Now()
-			//}
-		}
-	}
-
-	if l > 0 {
-		if true {
-			err = d.at_wait_io(SPI_STATE_MISO)
-			if err != nil {
-				fmt.Printf("r333 %s\r\n", err.Error())
-			}
-		} else {
-			//wait500ms := time.Now()
-			////s := wait500ms
-
-			//// timeout 500ms
-			//for {
-			//	if time.Now().Sub(wait500ms).Milliseconds() < 500 {
-			//		if d.syncPin.Get() == SPI_STATE_MISO {
-			//			//for time.Now().Sub(s).Microseconds() < 10 {
-			//			//	s = time.Now()
-			//			//}
-			//			break
-			//		}
-			//	} else {
-			//		//fmt.Printf("r333\r\n")
-			//		break
-			//	}
-			//	//for time.Now().Sub(s).Microseconds() < 10 {
-			//	//	s = time.Now()
-			//	//}
-			//}
-			//time.Sleep(1 * time.Millisecond)
-		}
-
-		d.csPin.Low()
+	l := d.spi_transfer8_8(SPT_TAG_DMY, SPT_TAG_DMY)
+	if 0 < l {
+		d2.High()
 		for i := uint16(0); i < l; i++ {
 			buf[i] = d.spi_transfer(SPT_TAG_DMY)
 		}
-		d.csPin.High()
-		/* success transfer l bytes */
-		r = int(l)
-
-		err = d.at_wait_io(SPI_STATE_MOSI)
-		if err != nil {
-			fmt.Printf("r444 %s\r\n", err.Error())
-		}
-
+		//d.spi_receive(buf[:l])
+		d2.Low()
 	}
 
-	//if 0 < l {
-	//	fmt.Printf(" %d\r\n", l)
-	//} else {
-	//	fmt.Printf(".")
-	//}
+	//fmt.Printf("r:%d: %s\r\n", l, string(buf[:l]))
+	fmt.Printf("r:%d\r\n", l)
 
-	return r, nil
+	// success transfer len byts
+	return int(l), nil
 }

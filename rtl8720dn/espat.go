@@ -32,6 +32,7 @@ import (
 type Device struct {
 	bus       machine.SPI
 	chipPu    machine.Pin
+	irq0      machine.Pin
 	syncPin   machine.Pin
 	csPin     machine.Pin
 	uartRxPin machine.Pin
@@ -54,10 +55,11 @@ type Config struct {
 var ActiveDevice *Device
 
 // New returns a new espat driver. Pass in a fully configured UART bus.
-func New(bus machine.SPI, chipPu, syncPin, csPin, uartRxPin machine.Pin) *Device {
+func New(bus machine.SPI, chipPu, irq0, syncPin, csPin, uartRxPin machine.Pin) *Device {
 	return &Device{
 		bus:       bus,
 		chipPu:    chipPu,
+		irq0:      irq0,
 		syncPin:   syncPin,
 		csPin:     csPin,
 		uartRxPin: uartRxPin,
@@ -80,6 +82,7 @@ func (d *Device) Configure(config *Config) error {
 
 	// initalize the  data ready and chip select pins:
 	d.syncPin.Configure(machine.PinConfig{Mode: machine.PinInput})
+	d.irq0.Configure(machine.PinConfig{Mode: machine.PinInput})
 	d.csPin.Configure(machine.PinConfig{Mode: machine.PinOutput})
 	d.csPin.High()
 
@@ -298,7 +301,7 @@ func (d *Device) Response(timeout int) ([]byte, error) {
 		// wait longer?
 		retries--
 		if retries == 0 {
-			return nil, fmt.Errorf("response timeout error:" + string(d.response[start:end]))
+			return nil, fmt.Errorf("1response timeout error:" + string(d.response[start:end]))
 		}
 
 		time.Sleep(time.Duration(pause) * time.Millisecond)
@@ -366,7 +369,7 @@ func dump(state STATE, start, end, contentRemain, contentLength, ipdLen int, res
 	} else if 64 < len(res) {
 		fmt.Printf("-- %d %d %d/%d %d %q...\r\n", start, end, contentRemain, contentLength, ipdLen, res[:61])
 	} else {
-		fmt.Printf("-- %d %d %d %d/%d %d %q\r\n", state, start, end, contentRemain, contentLength, ipdLen, res)
+		fmt.Printf("-- %d %d %d/%d %d %q\r\n", start, end, contentRemain, contentLength, ipdLen, res)
 	}
 }
 
@@ -383,7 +386,7 @@ func (d *Device) ResponseIPD(timeout int, buf []byte) (int, error) {
 
 	var err error
 	var header []byte
-	var response Response
+	var response Response2
 	var contentLength int
 	var contentType string
 	var contentRemain int
@@ -391,6 +394,7 @@ func (d *Device) ResponseIPD(timeout int, buf []byte) (int, error) {
 
 	//sum := 0
 	for {
+		fmt.Printf("-+ irq0 : %t\r\n", d.irq0.Get())
 		//dump(state, start, end, contentRemain, contentLength, ipdLen, d.response[start:end])
 		switch state {
 		case stRead1, stRead2, stRead3, stRead4, stRead5, stRead6:
@@ -419,7 +423,7 @@ func (d *Device) ResponseIPD(timeout int, buf []byte) (int, error) {
 				// wait longer?
 				retries--
 				if retries == 0 {
-					return 0, fmt.Errorf("response timeout error:" + string(d.response[start:end]))
+					return 0, fmt.Errorf("2response timeout error:" + string(d.response[start:end]))
 				}
 
 				time.Sleep(time.Duration(pause) * time.Millisecond)
@@ -540,10 +544,14 @@ func (d *Device) ResponseIPD(timeout int, buf []byte) (int, error) {
 		case stIpdBody2:
 			// HTTP body
 			//fmt.Printf("-- stIpdBody2 %d\r\n", end-start)
-			if response.Header.ContentType == "application/octet-stream" {
-				fmt.Printf("-- (%s)\r\n%#v\r\n--\r\n", response.Header.ContentType, d.response[start:end])
+			if false {
+				if response.Header.ContentType == "application/octet-stream" {
+					fmt.Printf("-- (%s)\r\n%#v\r\n--\r\n", response.Header.ContentType, d.response[start:end])
+				} else {
+					fmt.Printf("-- (%s)\r\n%s\r\n--\r\n", response.Header.ContentType, string(d.response[start:end]))
+				}
 			} else {
-				fmt.Printf("-- (%s)\r\n%s\r\n--\r\n", response.Header.ContentType, string(d.response[start:end]))
+				fmt.Printf("-:%d\r\n", end-start)
 			}
 			//dump()
 			if ipdLen < end-start {
@@ -563,9 +571,9 @@ func (d *Device) ResponseIPD(timeout int, buf []byte) (int, error) {
 				ipdLen = 0
 				state = stIpdHeader2
 			} else {
-				fmt.Printf("$$ 33\r\n")
+				fmt.Printf("$$ 33x\r\n")
 				copy(buf[bufIdx:], d.response[start:end])
-				fmt.Printf("== stIpdBody2 ipdLen %d : end %d : start %d\r\n", ipdLen, end, start)
+				fmt.Printf("==/stIpdBody2 ipdLen %d : end %d : start %d : remain %d\r\n", ipdLen, end, start, end-start)
 				bufIdx += end - start
 				contentRemain -= end - start
 				ipdLen -= end - start
@@ -699,12 +707,12 @@ func (d *Device) ResponseIPD2(timeout int, buf []byte) (int, error) {
 
 	var err error
 	var header []byte
-	var response Response
+	var response Response2
 	var bufIdx int
 
 	//sum := 0
 	for {
-		//dump(ipd2state, start, end, contentRemain, contentLength, ipdLen, d.response[start:end])
+		dump(ipd2state, start, end, contentRemain, contentLength, ipdLen, d.response[start:end])
 		switch ipd2state {
 		case stRead1, stRead2, stRead3, stRead4, stRead5, stRead6:
 			size, err = d.at_spi_read(d.response[wp:])
@@ -732,7 +740,7 @@ func (d *Device) ResponseIPD2(timeout int, buf []byte) (int, error) {
 				// wait longer?
 				retries--
 				if retries == 0 {
-					return 0, fmt.Errorf("response timeout error:" + string(d.response[start:end]))
+					return 0, fmt.Errorf("3response timeout error:" + string(d.response[start:end]))
 				}
 
 				time.Sleep(time.Duration(pause) * time.Millisecond)

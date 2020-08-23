@@ -21,4 +21,5 @@ func init() {
 	syncPin = machine.RTL8720D_GPIO0
 	csPin = machine.SS1
 	uartRxPin = machine.UART2_RX_PIN
+	irq0 = machine.IRQ0
 }

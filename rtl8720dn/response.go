@@ -1,14 +1,16 @@
 package rtl8720dn
 
-import (
-	"io"
-)
+import "io"
 
-type Header struct {
+//import (
+//	"io"
+//)
+//
+type Header2 struct {
 	ContentType string
 }
 
-type Response struct {
+type Response2 struct {
 	Status     string // e.g. "200 OK"
 	StatusCode int    // e.g. 200
 	Proto      string // e.g. "HTTP/1.0"
@@ -24,7 +26,7 @@ type Response struct {
 	// authoritative.
 	//
 	// Keys in the map are canonicalized (see CanonicalHeaderKey).
-	Header Header
+	Header Header2
 
 	// Body represents the response body.
 	//
