@@ -69,43 +69,20 @@ func (d *Device) spi_transfer(b byte) byte {
 	return v
 }
 
-func (d *Device) spi_receive(buf []byte) {
-	if len(buf) < 1 {
-		for i := range buf {
-			buf[i] = d.spi_transfer(SPT_TAG_DMY)
-		}
-		return
-	}
+func (d *Device) spi_rx(rx []byte) {
+	d.bus.Bus.DATA.Set(uint32(SPT_TAG_DMY))
 
-	d.bus.Bus.DATA.Set(SPT_TAG_DMY)
-	for !d.bus.Bus.INTFLAG.HasBits(sam.SERCOM_SPIM_INTFLAG_RXC) {
-	}
-	buf[0] = byte(d.bus.Bus.DATA.Get())
-	d.bus.Bus.DATA.Set(SPT_TAG_DMY)
-
-	for i := 1; i < len(buf)-1; i++ {
+	for i := 0; i < len(rx)-1; i++ {
 		for !d.bus.Bus.INTFLAG.HasBits(sam.SERCOM_SPIM_INTFLAG_RXC) {
 		}
-		buf[i] = byte(d.bus.Bus.DATA.Get())
-		d.bus.Bus.DATA.Set(SPT_TAG_DMY)
+		rx[i] = byte(d.bus.Bus.DATA.Get())
+		d.bus.Bus.DATA.Set(uint32(SPT_TAG_DMY))
 	}
+
 	for !d.bus.Bus.INTFLAG.HasBits(sam.SERCOM_SPIM_INTFLAG_RXC) {
 	}
-	buf[len(buf)-1] = byte(d.bus.Bus.DATA.Get())
+	rx[len(rx)-1] = byte(d.bus.Bus.DATA.Get())
 }
-
-//// Transfer writes/reads a single byte using the SPI interface.
-//func (spi SPI) Transfer(w byte) (byte, error) {
-//	// write data
-//	spi.Bus.DATA.Set(uint32(w))
-//
-//	// wait for receive
-//	for !spi.Bus.INTFLAG.HasBits(sam.SERCOM_SPIM_INTFLAG_RXC) {
-//	}
-//
-//	// return data
-//	return byte(spi.Bus.DATA.Get()), nil
-//}
 
 func (d *Device) spi_transfer16(data uint16) uint16 {
 	r := uint16(d.spi_transfer(uint8(data>>8))) << 8
@@ -269,10 +246,10 @@ func (d *Device) at_spi_read(buf []byte) (int, error) {
 	l := d.spi_transfer8_8(SPT_TAG_DMY, SPT_TAG_DMY)
 	if 0 < l {
 		d2.High()
-		for i := uint16(0); i < l; i++ {
-			buf[i] = d.spi_transfer(SPT_TAG_DMY)
-		}
-		//d.spi_receive(buf[:l])
+		d.spi_rx(buf[:l])
+		//for i := uint16(0); i < l; i++ {
+		//	buf[i] = d.spi_transfer(SPT_TAG_DMY)
+		//}
 		d2.Low()
 	}
 
