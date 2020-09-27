@@ -367,20 +367,20 @@ func testCipsend() error {
 	cipstartStr := `AT+CIPSTART="0","TCP","192.168.1.110",80` + "\r\n\r\n"
 	cipsendStr := `AT+CIPSEND="0","18"` + "\r\n\r\n"
 	//reqStr := `GET /gitbucket2020/signin?redirect=%2F HTTP/1.1` + "\r\n" +
-	reqStr := `` +
-		`GET /gitbucket2020/signin?redirect=%2F HTTP/1.1` + "\r\n" +
-		`Host: 192.168.1.110` + "\r\n" +
-		`User-Agent: curl/7.68.0` + "\r\n" +
-		`Accept: */*` + "\r\n" +
-		`Connection: close` + "\r\n" +
-		"\r\n"
 	//reqStr := `` +
-	//	`GET / HTTP/1.1` + "\r\n" +
+	//	`GET /gitbucket2020/signin?redirect=%2F HTTP/1.1` + "\r\n" +
 	//	`Host: 192.168.1.110` + "\r\n" +
 	//	`User-Agent: curl/7.68.0` + "\r\n" +
 	//	`Accept: */*` + "\r\n" +
 	//	`Connection: close` + "\r\n" +
 	//	"\r\n"
+	reqStr := `` +
+		`GET / HTTP/1.1` + "\r\n" +
+		`Host: 192.168.1.110` + "\r\n" +
+		`User-Agent: curl/7.68.0` + "\r\n" +
+		`Accept: */*` + "\r\n" +
+		`Connection: close` + "\r\n" +
+		"\r\n"
 
 	// AT+CIPSTART
 	_, err := adaptor.Write([]byte(cipstartStr))
