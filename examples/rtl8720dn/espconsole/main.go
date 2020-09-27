@@ -133,6 +133,7 @@ func main() {
 						}
 						d0.Low()
 					case 'A':
+						restartCnt := 0
 						for {
 							// debug
 							err := testCipsend()
@@ -141,10 +142,11 @@ func main() {
 								if err.Error() == `w000 WaitDir time out` || err.Error() == `r000 WaitDir time out` {
 									led.Toggle()
 									resetAndReconnect()
+									restartCnt++
 									continue
 								}
 							}
-							fmt.Fprintf(console, "-- %d --\r\n", i)
+							fmt.Fprintf(console, "-- %d %d --\r\n", i, restartCnt)
 							i++
 							time.Sleep(200 * time.Millisecond)
 						}
