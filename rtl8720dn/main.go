@@ -246,10 +246,10 @@ func (d *Device) at_spi_read(buf []byte) (int, error) {
 	l := d.spi_transfer8_8(SPT_TAG_DMY, SPT_TAG_DMY)
 	if 0 < l {
 		d2.High()
-		d.spi_rx(buf[:l])
-		//for i := uint16(0); i < l; i++ {
-		//	buf[i] = d.spi_transfer(SPT_TAG_DMY)
-		//}
+		//d.spi_rx(buf[:l])
+		for i := uint16(0); i < l; i++ {
+			buf[i] = d.spi_transfer(SPT_TAG_DMY)
+		}
 		d2.Low()
 	}
 
