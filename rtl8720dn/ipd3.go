@@ -40,6 +40,8 @@ func (d *Device) ResponseIPD4(timeout int, buf []byte) (int, error) {
 	header := []byte{}
 	remain := 0
 
+	bodySize := 0
+
 	cont := true
 	s := time.Now()
 	for cont {
@@ -110,17 +112,10 @@ func (d *Device) ResponseIPD4(timeout int, buf []byte) (int, error) {
 		case stIpdHeader1:
 			fmt.Printf("-- stIpdHeader1\r\n")
 			fmt.Printf("s:%d e:%d\r\n", start, end)
-			if end-start == 0 {
-				ipd4state--
-				end = 0
-				start = 0
-				wp = end
-				continue
-			}
 
 			// HTTP header
 			endOfHeader := bytes.Index(d.response[start:end], []byte("\r\n\r\n"))
-			if endOfHeader < -1 {
+			if endOfHeader < 0 {
 				ipd4state--
 				copy(d.response, d.response[start:end])
 				end = end - start
@@ -179,7 +174,7 @@ func (d *Device) ResponseIPD4(timeout int, buf []byte) (int, error) {
 			}
 			ipdLen = int(l)
 
-			start = idx + 1
+			start += idx + 1
 			fmt.Printf("ipdLen := %d\r\n", ipdLen)
 			ipd4state = stIpdBody1
 
@@ -200,9 +195,13 @@ func (d *Device) ResponseIPD4(timeout int, buf []byte) (int, error) {
 
 			fmt.Printf("s:%d e:%d e2:%d e2-s:%d e-s:%d\r\n", start, end, e, e-start, end-start)
 			machine.UART0.WriteBytes([]byte(fmt.Sprintf("%s\r\n", string(d.response[start:e]))))
+			bodySize += e - start
 			remain -= e - start
 			ipdLen -= e - start
-			//ipd4state--
+
+			if ipdLen == 0 {
+				ipd4state = stIpdParse2
+			}
 			start = e
 			fmt.Printf("s:%d e:%d e2:%d e2-s:%d e-s:%d\r\n", start, end, e, e-start, end-start)
 			fmt.Printf("ipdLen %d, remain %d, e-s %d-%d=%d\r\n", ipdLen, remain, end, start, end-start)
@@ -294,7 +293,7 @@ func (d *Device) ResponseIPD4(timeout int, buf []byte) (int, error) {
 	//	}
 	//}
 
-	return size, nil
+	return bodySize, nil
 }
 
 type httpHeader []byte
