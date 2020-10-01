@@ -7,21 +7,45 @@ import (
 	"time"
 )
 
+type IpdState int
+
+const (
+	stIpdRead1 IpdState = iota
+	stIpdParse1
+	stIpdRead2
+	stIpdHeader1
+	stIpdRead3
+	stIpdParse2
+	stIpdRead4
+	stIpdBody1
+)
+
+func (s IpdState) String() string {
+	switch s {
+	case stIpdRead1:
+		return "stIpdRead1"
+	case stIpdParse1:
+		return "stIpdParse1"
+	case stIpdRead2:
+		return "stIpdRead2"
+	case stIpdHeader1:
+		return "stIpdHeader1"
+	case stIpdRead3:
+		return "stIpdRead3"
+	case stIpdParse2:
+		return "stIpdParse2"
+	case stIpdRead4:
+		return "stIpdRead4"
+	case stIpdBody1:
+		return "stIpdBody1"
+	}
+	return "ERROR"
+}
+
 func (d *Device) ResponseIPD(timeout int, buf []byte) (int, error) {
 	var err error
 	size := 0
 	retry := 0
-
-	const (
-		stIpdRead1 = iota
-		stIpdParse1
-		stIpdRead2
-		stIpdHeader1
-		stIpdRead3
-		stIpdParse2
-		stIpdRead4
-		stIpdBody1
-	)
 
 	ipd4state := stIpdRead1
 	start := 0
@@ -37,6 +61,16 @@ func (d *Device) ResponseIPD(timeout int, buf []byte) (int, error) {
 	cont := true
 	s := time.Now()
 	for cont {
+		d.stateMonitor(ipd4state)
+		if debug {
+			str := string(d.response[start:end])
+			if 100 < len(str) {
+				str = str[:47] + "..." + str[len(str)-50:]
+			}
+			if 0 < len(str) {
+				dbgPrintf("d.response[start(%d):end(%d)] : %q\r\n", start, end, str)
+			}
+		}
 		switch ipd4state {
 		case stIpdRead1, stIpdRead2, stIpdRead3, stIpdRead4:
 			//dbgPrintf("s:%d e:%d\r\n", start, end)
@@ -56,7 +90,11 @@ func (d *Device) ResponseIPD(timeout int, buf []byte) (int, error) {
 
 			if 0 < size {
 				end += size
-				dbgPrintf("\r\n-- stIpdRead* : %d : %q\r\n", size, string(d.response[end-8:end]))
+				s := end - 8
+				if s < 0 {
+					s = 0
+				}
+				dbgPrintf("\r\n-- stIpdRead* : %d : %q\r\n", size, string(d.response[s:end]))
 				//dbgPrintf("%q\r\n", string(d.response[start:end]))
 				//machine.UART0.WriteBytes([]byte(fmt.Sprintf("%q\r\n", string(d.response[start:end]))))
 				ipd4state++
@@ -115,7 +153,7 @@ func (d *Device) ResponseIPD(timeout int, buf []byte) (int, error) {
 
 			header = d.response[start : start+endOfHeader]
 			copy(buf[bufIdx:], header)
-			bufIdx += endOfHeader - start
+			bufIdx += endOfHeader
 			start += endOfHeader
 			ipdLen -= endOfHeader
 			wp = end
@@ -123,6 +161,7 @@ func (d *Device) ResponseIPD(timeout int, buf []byte) (int, error) {
 			if ipdLen == 0 {
 				ipd4state = stIpdParse2
 			}
+			d.header = string(header)
 
 			dbgPrintf("header      : %s\r\n", string(header))
 			dbgPrintf("header      : %q\r\n", string(header))
