@@ -50,7 +50,7 @@ var conn net.Conn
 var (
 	led = machine.LED
 
-	debug = true
+	debug = false
 )
 
 func toggleDebugMode() {
@@ -76,48 +76,6 @@ func main() {
 
 	drv := adaptor.NewDriver()
 	net.UseDriver(drv)
-
-	if false {
-		// for Device
-		for false {
-			//ip, err := adaptor.GetHostByName("tinygo.org")
-			//fmt.Printf("%#v %#v\r\n", ip, err)
-			err := adaptor.ConnectSocket("TCP", "tinygo.org", "80")
-			//err := adaptor.ConnectSocket("TCP", "192.168.1.110", 80)
-			fmt.Printf("%#v\r\n", err)
-			time.Sleep(1 * time.Second)
-			err = adaptor.DisconnectSocket()
-			fmt.Printf("%#v\r\n", err)
-
-			time.Sleep(10 * time.Second)
-			if false {
-				break
-			}
-		}
-
-		// for Driver
-		buf := make([]byte, 1024*10)
-		for {
-			//ip, err := drv.GetDNS("tinygo.org")
-			//fmt.Printf("%#v %#v\r\n", ip, err)
-			//err := drv.ConnectTCPSocket("tinygo.org", "80")
-			err := drv.ConnectTCPSocket("192.168.1.110", "80")
-			fmt.Printf("%#v\r\n", err)
-
-			//n, err := drv.Write([]byte("GET / HTTP/1.0\r\n\r\n"))
-			n, err := drv.Write([]byte("GET / HTTP/1.1\r\nHost: 192.168.1.110\r\nUser-Agent: curl/7.68.0\r\nAccept: */*\r\nConnection: Keep-Alive\r\n\r\n"))
-			fmt.Printf("%#v %#v\r\n", n, err)
-
-			n, err = drv.ReadSocket(buf)
-			fmt.Printf("%#v %#v\r\n", n, err)
-			fmt.Printf("%s\r\n", buf[:n])
-
-			err = adaptor.DisconnectSocket()
-			fmt.Printf("%#v\r\n", err)
-
-			time.Sleep(10 * time.Second)
-		}
-	}
 
 	for {
 		loop()
