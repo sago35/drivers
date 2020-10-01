@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"strconv"
 	"time"
-
-	"machine"
 )
 
 func (d *Device) ResponseIPD(timeout int, buf []byte) (int, error) {
@@ -34,6 +32,7 @@ func (d *Device) ResponseIPD(timeout int, buf []byte) (int, error) {
 	remain := 0
 
 	bodySize := 0
+	bufIdx := 0
 
 	cont := true
 	s := time.Now()
@@ -115,6 +114,8 @@ func (d *Device) ResponseIPD(timeout int, buf []byte) (int, error) {
 			endOfHeader += 4
 
 			header = d.response[start : start+endOfHeader]
+			copy(buf[bufIdx:], header)
+			bufIdx += endOfHeader - start
 			start += endOfHeader
 			ipdLen -= endOfHeader
 			wp = end
@@ -182,7 +183,9 @@ func (d *Device) ResponseIPD(timeout int, buf []byte) (int, error) {
 			}
 
 			dbgPrintf("s:%d e:%d e2:%d e2-s:%d e-s:%d\r\n", start, end, e, e-start, end-start)
-			machine.UART0.WriteBytes([]byte(fmt.Sprintf("%s\r\n", string(d.response[start:e]))))
+			//machine.UART0.WriteBytes([]byte(fmt.Sprintf("%s\r\n", string(d.response[start:e]))))
+			copy(buf[bufIdx:], d.response[start:e])
+			bufIdx += e - start
 			bodySize += e - start
 			remain -= e - start
 			ipdLen -= e - start
@@ -225,9 +228,10 @@ func (d *Device) ResponseIPD(timeout int, buf []byte) (int, error) {
 			}
 		}
 	}
+	//machine.UART0.WriteBytes([]byte(fmt.Sprintf("%q\r\n", string(buf[:bufIdx]))))
 	dbgPrintf("-- done\r\n")
 
-	return bodySize, nil
+	return bufIdx, nil
 }
 
 type httpHeader []byte
