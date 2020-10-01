@@ -59,6 +59,17 @@ func toggleDebugMode() {
 }
 
 func main() {
+	{
+		button := machine.BUTTON
+		button.Configure(machine.PinConfig{Mode: machine.PinInput})
+		err := button.SetInterrupt(machine.PinFalling, func(machine.Pin) {
+			toggleDebugMode()
+		})
+		if err != nil {
+			failMessage(err.Error())
+		}
+	}
+
 	time.Sleep(2000 * time.Millisecond)
 	if debug {
 		rtl8720dn.Debug(true)
