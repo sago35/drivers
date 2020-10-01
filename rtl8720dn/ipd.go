@@ -77,15 +77,17 @@ func (d *Device) ResponseIPD(timeout int, buf []byte) (int, error) {
 			dbgPrintf(".")
 			size, err = d.at_spi_read(d.response[wp:])
 			if err != nil {
-				dbgPrintf("Res3Error: %s\r\n", err.Error())
 				retry++
 				if retry == 10 {
+					dbgPrintf("Res3Error: %s\r\n", err.Error())
 					return 0, err
 				}
 			}
 
 			if time.Now().Sub(s).Microseconds() > 100*1000 {
-				return 0, fmt.Errorf("read timeout")
+				err := fmt.Errorf("read timeout")
+				dbgPrintf("%s\r\n", err.Error())
+				return 0, err
 			}
 
 			if 0 < size {
@@ -113,20 +115,26 @@ func (d *Device) ResponseIPD(timeout int, buf []byte) (int, error) {
 				for d.existData.Get() {
 					_, err := d.at_spi_read(d.response[:])
 					if err != nil {
+						dbgPrintf("%s\r\n", err.Error())
 						return 0, err
 					}
 				}
-				return 0, fmt.Errorf("RTL8720DN tx overflow")
+				err := fmt.Errorf("RTL8720DN tx overflow")
+				dbgPrintf("%s\r\n", err.Error())
+				return 0, err
 			}
 			idx := bytes.IndexByte(d.response[start:end], byte(':'))
 			if idx < 0 {
-				return 0, fmt.Errorf("err3")
+				err := fmt.Errorf("err3")
+				dbgPrintf("%s\r\n", err.Error())
+				return 0, err
 			}
 			dbgPrintf("%s\r\n", d.response[start:start+idx])
 
 			s := bytes.Split(d.response[start:start+idx], []byte(","))
 			l, err := strconv.ParseUint(string(s[2]), 10, 0)
 			if err != nil {
+				dbgPrintf("%s\r\n", err.Error())
 				return 0, err
 			}
 			ipdLen = int(l)
@@ -185,19 +193,25 @@ func (d *Device) ResponseIPD(timeout int, buf []byte) (int, error) {
 				for d.existData.Get() {
 					_, err := d.at_spi_read(d.response[:])
 					if err != nil {
+						dbgPrintf("%s\r\n", err.Error())
 						return 0, err
 					}
 				}
-				return 0, fmt.Errorf("RTL8720DN tx overflow 2")
+				err := fmt.Errorf("RTL8720DN tx overflow 2")
+				dbgPrintf("%s\r\n", err.Error())
+				return 0, err
 			}
 
 			idx := bytes.IndexByte(d.response[start:end], byte(':'))
 			if idx < 0 {
-				return 0, fmt.Errorf("err5")
+				err := fmt.Errorf("err5")
+				dbgPrintf("%s\r\n", err.Error())
+				return 0, err
 			}
 			s := bytes.Split(d.response[start:start+idx], []byte(","))
 			l, err := strconv.ParseUint(string(s[2]), 10, 0)
 			if err != nil {
+				dbgPrintf("%s\r\n", err.Error())
 				return 0, err
 			}
 			ipdLen = int(l)
@@ -239,7 +253,9 @@ func (d *Device) ResponseIPD(timeout int, buf []byte) (int, error) {
 				// OK
 				cont = false
 			} else if ipdLen < 0 {
-				return 0, fmt.Errorf("err6")
+				err := fmt.Errorf("err6")
+				dbgPrintf("%s\r\n", err.Error())
+				return 0, err
 			}
 		default:
 			dbgPrintf("-- default\r\n")
