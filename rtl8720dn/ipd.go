@@ -84,7 +84,7 @@ func (d *Device) ResponseIPD(timeout int, buf []byte) (int, error) {
 				}
 			}
 
-			if time.Now().Sub(s).Microseconds() > 100*1000 {
+			if time.Now().Sub(s).Seconds() > 10 {
 				err := fmt.Errorf("read timeout")
 				dbgPrintf("%s\r\n", err.Error())
 				return 0, err
