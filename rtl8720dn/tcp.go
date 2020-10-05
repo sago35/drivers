@@ -18,8 +18,6 @@ func (d *Device) NewDriver() net.DeviceDriver {
 type Driver struct {
 	dev *Device
 
-	req                   [256]byte
-	reqIdx                int
 	state                 State
 	isSocketDataAvailable bool
 }
@@ -67,19 +65,8 @@ func (drv *Driver) Write(b []byte) (int, error) {
 	// r:11: "\r\nSEND OK\r\n"
 	ch := 0
 
-	if len(drv.req) < drv.reqIdx+len(b) {
-		return 0, fmt.Errorf("write buf overflow")
-	}
-
-	copy(drv.req[drv.reqIdx:], b)
-	drv.reqIdx += len(b)
-
-	if !bytes.HasSuffix(drv.req[:drv.reqIdx], []byte("\r\n\r\n")) && !bytes.HasSuffix(drv.req[:drv.reqIdx], []byte("\n\n")) {
-		return len(b), nil
-	}
-
 	// AT+CIPSEND
-	_, err := drv.dev.Write([]byte(fmt.Sprintf(`AT+CIPSEND=%d,%d`, ch, drv.reqIdx) + "\r\n"))
+	_, err := drv.dev.Write([]byte(fmt.Sprintf(`AT+CIPSEND=%d,%d`, ch, len(b)) + "\r\n"))
 	if err != nil {
 		return 0, err
 	}
@@ -97,8 +84,7 @@ func (drv *Driver) Write(b []byte) (int, error) {
 	}
 
 	// HTTP Request
-	_, err = drv.dev.Write(drv.req[:drv.reqIdx])
-	drv.reqIdx = 0
+	_, err = drv.dev.Write(b)
 	if err != nil {
 		return 0, err
 	}
@@ -113,7 +99,6 @@ func (drv *Driver) Write(b []byte) (int, error) {
 	}
 
 	drv.isSocketDataAvailable = true
-	drv.reqIdx = 0
 
 	return len(b), nil
 }
