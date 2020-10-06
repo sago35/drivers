@@ -113,8 +113,8 @@ func (d *Device) GetHostByName(hostname string) (IPAddress, error) {
 		return IPAddress(0), fmt.Errorf("err1")
 	}
 
-	ip := string(r[12 : 12+idx-1])
-	return IPAddress(ip), err
+	ip := string(r[12 : 12+idx])
+	return ParseIPv4(ip)
 }
 
 func (d *Device) ConnectSocket(proto, hostname, portStr string) error {
