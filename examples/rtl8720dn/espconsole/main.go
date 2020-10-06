@@ -352,6 +352,8 @@ func cipsend(input []byte) error {
 		return err
 	}
 
+	fmt.Printf("%s\r\n", string(response))
+
 	return nil
 }
 
@@ -422,6 +424,8 @@ func testCipsend() error {
 	if err != nil {
 		return err
 	}
+
+	fmt.Printf("%s\r\n", string(response))
 
 	return nil
 }
