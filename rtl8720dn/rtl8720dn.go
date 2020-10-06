@@ -144,6 +144,38 @@ func (d *Device) ConnectSocket(proto, hostname, portStr string) error {
 	return nil
 }
 
+func (d *Device) ConnectUDPSocket(addr, portStr, lportStr string) error {
+	// ESPAT>AT+CIPSTART=0,"UDP","192.168.1.103",8080,8080,0
+	// w:49: "AT+CIPSTART=0,\"UDP\",\"192.168.1.103\",8080,8080,0\r\n"
+	// r:51: "+LINK_CONN:0,0,\"UDP\",0,\"192.168.1.103\",8080,0\r\nOK\r\n"
+	// +LINK_CONN:0,0,"UDP",0,"192.168.1.103",8080,0
+	// OK
+
+	port, err := strconv.ParseInt(portStr, 10, 64)
+	if err != nil {
+		return err
+	}
+
+	lport, err := strconv.ParseInt(lportStr, 10, 64)
+	if err != nil {
+		return err
+	}
+
+	ch := 0
+	d.Write([]byte(fmt.Sprintf(`AT+CIPSTART=%d,"UDP","%s",%d,%d`, ch, addr, port, lport) + "\r\n"))
+
+	r, err := d.Response(30000)
+	if err != nil {
+		return err
+	}
+
+	if !bytes.Contains(r, []byte("\nOK")) {
+		return fmt.Errorf("ConnectSocket failed")
+	}
+
+	return nil
+}
+
 func (d *Device) DisconnectSocket() error {
 	// ESPAT>AT+CIPCLOSE=0
 	// w:15: "AT+CIPCLOSE=0\r\n"

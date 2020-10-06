@@ -45,7 +45,7 @@ func (drv *Driver) ConnectSSLSocket(addr, portStr string) error {
 }
 
 func (drv *Driver) ConnectUDPSocket(addr, sendport, listenport string) error {
-	return fmt.Errorf("not implemented")
+	return drv.dev.ConnectUDPSocket(addr, sendport, listenport)
 }
 
 func (drv *Driver) DisconnectSocket() error {
