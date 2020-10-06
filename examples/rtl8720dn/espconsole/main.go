@@ -294,29 +294,44 @@ func resetAndReconnect() error {
 func cipsend(input []byte) error {
 	reqIdx := 0
 
-	ch, _, err := adaptor.ParseCIPSEND(input)
+	ch, length, err := adaptor.ParseCIPSEND(input)
 	if err != nil {
 		return err
 	}
 
-	// length は無視して、プロンプトを出す
+	// length == 0 の時は length を無視して、プロンプトを出す
 	// \r\n\r\n が suffix になったら実際の送信を行う
-	for {
-		if console.Buffered() > 0 {
-			data, _ := console.ReadByte()
-			req[reqIdx] = data
-			reqIdx++
-			if data == '\r' {
-				req[reqIdx] = '\n'
+	if length == 0 {
+		for {
+			if console.Buffered() > 0 {
+				data, _ := console.ReadByte()
+				req[reqIdx] = data
 				reqIdx++
-				console.Write([]byte("\r\n"))
-			} else {
+				if data == '\r' {
+					req[reqIdx] = '\n'
+					reqIdx++
+					console.Write([]byte("\r\n"))
+				} else {
+					console.WriteByte(data)
+				}
+				if bytes.HasSuffix(req[:reqIdx], []byte("\r\n\r\n")) {
+					break
+				}
+				time.Sleep(10 * time.Millisecond)
+			}
+		}
+	} else {
+		for {
+			if console.Buffered() > 0 {
+				data, _ := console.ReadByte()
+				req[reqIdx] = data
+				reqIdx++
 				console.WriteByte(data)
+				if length <= reqIdx {
+					break
+				}
+				time.Sleep(10 * time.Millisecond)
 			}
-			if bytes.HasSuffix(req[:reqIdx], []byte("\r\n\r\n")) {
-				break
-			}
-			time.Sleep(10 * time.Millisecond)
 		}
 	}
 
