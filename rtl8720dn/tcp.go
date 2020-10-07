@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	ReadBufferSize = 128
+	ReadBufferSize = 2048
 )
 
 func (d *Device) NewDriver() net.DeviceDriver {
@@ -20,6 +20,14 @@ type Driver struct {
 
 	state                 State
 	isSocketDataAvailable bool
+
+	readBuf readBuffer
+}
+
+type readBuffer struct {
+	data [ReadBufferSize]byte
+	head int
+	size int
 }
 
 type State int
@@ -108,17 +116,34 @@ func (drv *Driver) ReadSocket(b []byte) (int, error) {
 		return 0, nil
 	}
 	defer func() {
-		drv.isSocketDataAvailable = false
+		if drv.readBuf.size == 0 {
+			drv.isSocketDataAvailable = false
+		}
 	}()
 
-	// display response (header / body)
-	n, err := drv.dev.ResponseIPD(30000, b)
-	if err != nil {
-		return 0, err
+	if drv.readBuf.size == 0 {
+		// display response (header / body)
+		n, err := drv.dev.ResponseIPD(3000, drv.readBuf.data[:])
+		if err != nil {
+			return 0, err
+		}
+		drv.readBuf.head = 0
+		drv.readBuf.size = n
 	}
 
-	b = b[:n]
-	return n, nil
+	sz := drv.readBuf.size
+	if sz <= len(b) {
+		copy(b, drv.readBuf.data[drv.readBuf.head:drv.readBuf.head+sz])
+		drv.readBuf.head = 0
+		drv.readBuf.size = 0
+		return sz, nil
+	}
+
+	copy(b, drv.readBuf.data[drv.readBuf.head:drv.readBuf.head+len(b)])
+	drv.readBuf.head += len(b)
+	drv.readBuf.size -= len(b)
+
+	return len(b), nil
 }
 
 // IsSocketDataAvailable returns of there is socket data available
