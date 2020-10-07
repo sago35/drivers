@@ -52,6 +52,7 @@ func (d *Device) ResponseIPD(timeout int, buf []byte) (int, error) {
 	end := 0
 	wp := 0
 	ipdLen := 0
+	notHTTP := false
 	header := []byte{}
 	remain := 0
 
@@ -139,13 +140,19 @@ func (d *Device) ResponseIPD(timeout int, buf []byte) (int, error) {
 			}
 			ipdLen = int(l)
 
-			start = idx + 1
+			start += idx + 1
 			dbgPrintf("ipdLen := %d\r\n", ipdLen)
 			ipd4state = stIpdHeader1
 
 		case stIpdHeader1:
 			dbgPrintf("-- stIpdHeader1\r\n")
 			dbgPrintf("s:%d e:%d\r\n", start, end)
+
+			if !bytes.HasPrefix(d.response[start:end], []byte("HTTP/")) {
+				notHTTP = true
+				ipd4state = stIpdBody1
+				continue
+			}
 
 			// HTTP header
 			endOfHeader := bytes.Index(d.response[start:end], []byte("\r\n\r\n"))
@@ -249,7 +256,11 @@ func (d *Device) ResponseIPD(timeout int, buf []byte) (int, error) {
 			start = e
 			dbgPrintf("s:%d e:%d e2:%d e2-s:%d e-s:%d\r\n", start, end, e, e-start, end-start)
 			dbgPrintf("ipdLen %d, remain %d, e-s %d-%d=%d\r\n", ipdLen, remain, end, start, end-start)
-			if remain == 0 {
+			//cont = false
+			if notHTTP && ipdLen == 0 {
+				// OK
+				cont = false
+			} else if remain == 0 {
 				// OK
 				cont = false
 			} else if ipdLen < 0 {
