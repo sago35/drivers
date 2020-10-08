@@ -57,7 +57,7 @@ var (
 var (
 	led = machine.LED
 
-	debug = true
+	debug = false
 )
 
 func toggleDebugMode() {
