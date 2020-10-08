@@ -153,7 +153,8 @@ func (d *Device) at_spi_read(buf []byte) (int, error) {
 	if 0 < l {
 		for i := uint16(0); i < l; i++ {
 			buf[i] = d.spi_transfer(SPT_TAG_DMY)
-			time.Sleep(1 * time.Microsecond)
+			//time.Sleep(1 * time.Microsecond)
+			newTimer(1 * time.Microsecond).WaitUntilExpired()
 		}
 	}
 

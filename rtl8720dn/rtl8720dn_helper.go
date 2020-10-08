@@ -74,3 +74,7 @@ func (d *Device) stateMonitor(st IpdState) {
 	}
 	d.stateHistories = append(d.stateHistories, st)
 }
+
+func (d *Device) spi_exist_data() bool {
+	return d.inputCnt < len(d.input)
+}

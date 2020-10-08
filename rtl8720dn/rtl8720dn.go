@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-func (d *Device) Response(timeout int) ([]byte, error) {
+func (d *Device) Response(timeout, length int) ([]byte, error) {
 	// read data
 	var size int
 	var start, end int
@@ -17,7 +17,11 @@ func (d *Device) Response(timeout int) ([]byte, error) {
 
 	var err error
 	for {
-		size, err = d.at_spi_read(d.response[start:])
+		if length == 0 {
+			size, err = d.at_spi_read(d.response[start:])
+		} else {
+			size, err = d.at_spi_read(d.response[start : start+length])
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -59,7 +63,9 @@ func (d *Device) Response(timeout int) ([]byte, error) {
 			return nil, fmt.Errorf("response timeout error:" + string(d.response[start:end]))
 		}
 
-		time.Sleep(time.Duration(pause) * time.Millisecond)
+		// wait 5ms
+		//time.Sleep(time.Duration(pause) * time.Millisecond)
+		newTimer(time.Duration(pause) * time.Millisecond).WaitUntilExpired()
 	}
 }
 
@@ -74,7 +80,7 @@ func (d *Device) Connected() bool {
 	}
 
 	// handle response here, should include "OK"
-	_, err = d.Response(1000)
+	_, err = d.Response(1000, 0)
 	if err != nil {
 		return false
 	}
@@ -99,7 +105,7 @@ func (d *Device) GetHostByName(hostname string) (IPAddress, error) {
 
 	d.Write([]byte(fmt.Sprintf(`AT+CIPDOMAIN="%s"`, hostname) + "\r\n"))
 
-	r, err := d.Response(30000)
+	r, err := d.Response(30000, 0)
 	if err != nil {
 		return IPAddress(0), err
 	}
@@ -132,7 +138,7 @@ func (d *Device) ConnectSocket(proto, hostname, portStr string) error {
 	ch := 0
 	d.Write([]byte(fmt.Sprintf(`AT+CIPSTART=%d,"%s","%s",%d`, ch, proto, hostname, port) + "\r\n"))
 
-	r, err := d.Response(30000)
+	r, err := d.Response(30000, 0)
 	if err != nil {
 		return err
 	}
@@ -164,7 +170,7 @@ func (d *Device) ConnectUDPSocket(addr, portStr, lportStr string) error {
 	ch := 0
 	d.Write([]byte(fmt.Sprintf(`AT+CIPSTART=%d,"UDP","%s",%d,%d`, ch, addr, port, lport) + "\r\n"))
 
-	r, err := d.Response(30000)
+	r, err := d.Response(30000, 0)
 	if err != nil {
 		return err
 	}
@@ -187,7 +193,7 @@ func (d *Device) DisconnectSocket() error {
 	ch := 0
 	d.Write([]byte(fmt.Sprintf(`AT+CIPCLOSE=%d`, ch) + "\r\n"))
 
-	r, err := d.Response(30000)
+	r, err := d.Response(30000, 0)
 	if err != nil {
 		return err
 	}
@@ -197,4 +203,8 @@ func (d *Device) DisconnectSocket() error {
 	}
 
 	return nil
+}
+
+func (d *Device) IsSocketDataAvailable() bool {
+	return d.spi_exist_data()
 }

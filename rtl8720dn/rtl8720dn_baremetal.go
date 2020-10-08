@@ -73,7 +73,7 @@ func (d *Device) Configure(config *Config) error {
 	time.Sleep(500 * time.Millisecond)
 	d.uartRxPin.Configure(machine.PinConfig{Mode: machine.PinInput})
 
-	r, err := d.Response(1000)
+	r, err := d.Response(1000, 0)
 	if err != nil {
 		fmt.Printf("error : %s\r\n", err.Error())
 		return err

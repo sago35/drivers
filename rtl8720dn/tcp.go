@@ -79,13 +79,13 @@ func (drv *Driver) Write(b []byte) (int, error) {
 		return 0, err
 	}
 
-	r, err := drv.dev.Response(30000)
+	r, err := drv.dev.Response(30000, 0)
 	if err != nil {
 		return 0, err
 	}
 
 	if !bytes.HasSuffix(r, []byte(">")) {
-		_, err = drv.dev.Response(30000)
+		_, err = drv.dev.Response(30000, 0)
 		if err != nil {
 			return 0, err
 		}
@@ -97,7 +97,7 @@ func (drv *Driver) Write(b []byte) (int, error) {
 		return 0, err
 	}
 
-	r, err = drv.dev.Response(30000)
+	r, err = drv.dev.Response(30000, 11)
 	if err != nil {
 		return 0, err
 	}
@@ -106,13 +106,11 @@ func (drv *Driver) Write(b []byte) (int, error) {
 		return 0, fmt.Errorf("Write failed")
 	}
 
-	drv.isSocketDataAvailable = true
-
 	return len(b), nil
 }
 
 func (drv *Driver) ReadSocket(b []byte) (int, error) {
-	if !drv.isSocketDataAvailable {
+	if !drv.IsSocketDataAvailable() {
 		return 0, nil
 	}
 	defer func() {
@@ -123,7 +121,7 @@ func (drv *Driver) ReadSocket(b []byte) (int, error) {
 
 	if drv.readBuf.size == 0 {
 		// display response (header / body)
-		n, err := drv.dev.ResponseIPD(3000, drv.readBuf.data[:])
+		n, err := drv.dev.ResponseIPD(10000, drv.readBuf.data[:])
 		if err != nil {
 			return 0, err
 		}
@@ -148,6 +146,9 @@ func (drv *Driver) ReadSocket(b []byte) (int, error) {
 
 // IsSocketDataAvailable returns of there is socket data available
 func (drv *Driver) IsSocketDataAvailable() bool {
+	if drv.dev.IsSocketDataAvailable() {
+		drv.isSocketDataAvailable = true
+	}
 	return drv.isSocketDataAvailable
 }
 
