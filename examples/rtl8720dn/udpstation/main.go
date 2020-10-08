@@ -137,7 +137,7 @@ func connectToAP() error {
 		return err
 	}
 
-	_, err = adaptor.Response(30000)
+	_, err = adaptor.Response(30000, 0)
 	if err != nil {
 		return err
 	}
@@ -151,7 +151,7 @@ func connectToAP() error {
 		}
 
 		retry++
-		_, err = adaptor.Response(30000)
+		_, err = adaptor.Response(30000, 0)
 		if err != nil {
 			if retry > 5 {
 				fmt.Printf("%s\r\n", err.Error())
@@ -170,7 +170,7 @@ func connectToAP() error {
 		return err
 	}
 
-	r, err := adaptor.Response(30000)
+	r, err := adaptor.Response(30000, 0)
 	if err != nil {
 		return err
 	}
@@ -183,7 +183,7 @@ func connectToAP() error {
 		return err
 	}
 
-	r, err = adaptor.Response(30000)
+	r, err = adaptor.Response(30000, 0)
 	if err != nil {
 		return err
 	}

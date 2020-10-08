@@ -157,7 +157,7 @@ func main() {
 						adaptor.Write(input[:i+2])
 
 						// display response
-						r, err := adaptor.Response(30000)
+						r, err := adaptor.Response(30000, 0)
 						if err != nil {
 							fmt.Fprintf(console, "%s\r\n", err.Error())
 						} else {
@@ -208,7 +208,7 @@ func connectToAP() error {
 		return err
 	}
 
-	_, err = adaptor.Response(30000)
+	_, err = adaptor.Response(30000, 0)
 	if err != nil {
 		return err
 	}
@@ -222,7 +222,7 @@ func connectToAP() error {
 		}
 
 		retry++
-		_, err = adaptor.Response(30000)
+		_, err = adaptor.Response(30000, 0)
 		if err != nil {
 			if retry > 5 {
 				fmt.Printf("%s\r\n", err.Error())
@@ -241,7 +241,7 @@ func connectToAP() error {
 		return err
 	}
 
-	r, err := adaptor.Response(30000)
+	r, err := adaptor.Response(30000, 0)
 	if err != nil {
 		return err
 	}
@@ -254,7 +254,7 @@ func connectToAP() error {
 		return err
 	}
 
-	r, err = adaptor.Response(30000)
+	r, err = adaptor.Response(30000, 0)
 	if err != nil {
 		return err
 	}
@@ -338,13 +338,13 @@ func cipsend(input []byte) error {
 	adaptor.Write([]byte(fmt.Sprintf("AT+CIPSEND=%d,%d\r\n", ch, reqIdx)))
 
 	// display response
-	r, err := adaptor.Response(30000)
+	r, err := adaptor.Response(30000, 0)
 	if err != nil {
 		return err
 	}
 
 	if !bytes.HasSuffix(r, []byte(">")) {
-		_, err := adaptor.Response(30000)
+		_, err := adaptor.Response(30000, 0)
 		if err != nil {
 			return err
 		}
@@ -356,7 +356,7 @@ func cipsend(input []byte) error {
 		return err
 	}
 
-	r, err = adaptor.Response(30000)
+	r, err = adaptor.Response(30000, 0)
 	if err != nil {
 		return err
 	}
@@ -374,7 +374,7 @@ func cipsend(input []byte) error {
 
 func testCipsend() error {
 	for existData.Get() {
-		_, err := adaptor.Response(100)
+		_, err := adaptor.Response(100, 0)
 		if err != nil {
 			return err
 		}
@@ -397,7 +397,7 @@ func testCipsend() error {
 	}
 
 	// display response
-	_, err = adaptor.Response(30000)
+	_, err = adaptor.Response(30000, 0)
 	if err != nil {
 		return err
 	}
@@ -411,13 +411,13 @@ func testCipsend() error {
 		return err
 	}
 
-	r, err := adaptor.Response(30000)
+	r, err := adaptor.Response(30000, 0)
 	if err != nil {
 		return err
 	}
 
 	if !bytes.HasSuffix(r, []byte(">")) {
-		_, err = adaptor.Response(30000)
+		_, err = adaptor.Response(30000, 0)
 		if err != nil {
 			return err
 		}
@@ -429,7 +429,7 @@ func testCipsend() error {
 		return err
 	}
 
-	r, err = adaptor.Response(30000)
+	r, err = adaptor.Response(30000, 0)
 	if err != nil {
 		return err
 	}
