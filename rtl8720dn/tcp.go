@@ -97,9 +97,22 @@ func (drv *Driver) Write(b []byte) (int, error) {
 		return 0, err
 	}
 
-	r, err = drv.dev.Response(30000, 11)
+	r, err = drv.dev.Response(30000, 0)
 	if err != nil {
 		return 0, err
+	}
+
+	// search : "\r\nSEND OK\r\n"
+	idx := bytes.Index(r[2:], []byte("\r\n"))
+	if idx < 0 {
+		return 0, fmt.Errorf("Write response error")
+	}
+	idx += 2
+
+	if 2+idx < len(r) {
+		copy(drv.dev.responseBuf, r[(2+idx):])
+		drv.dev.responseIdx = 0
+		drv.dev.responseEnd = len(r) - (2 + idx)
 	}
 
 	if !bytes.Contains(r, []byte("\nSEND OK")) {

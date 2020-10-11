@@ -24,15 +24,15 @@ func TestReadSocket(t *testing.T) {
 			},
 			expected: " \x02\x01\x00",
 		},
-		//{
-		//	summary: "normal 2",
-		//	input: []string{
-		//		"OK\r\n>",
-		//		"\r\nSEND OK\r\n\r\n+IPD,0,4,192.168.1.1,1883: \x02\x01\x00",
-		//		"\r\n+IPD,0,10,192.168.1.1,1883:1234567890",
-		//	},
-		//	expected: " \x02\x01\x00",
-		//},
+		{
+			summary: "normal 2",
+			input: []string{
+				"OK\r\n>",
+				"\r\nSEND OK\r\n\r\n+IPD,0,4,192.168.1.1,1883: \x02\x01\x00",
+				"\r\n+IPD,0,10,192.168.1.1,1883:1234567890",
+			},
+			expected: " \x02\x01\x00",
+		},
 	}
 
 	for _, test := range tests {
@@ -97,7 +97,6 @@ func TestReadSocket(t *testing.T) {
 
 		// next
 		n, err = io.ReadAtLeast(conn, b, 1)
-		t.Logf("1")
 
 		if n != 10 {
 			t.Errorf("size != 10")

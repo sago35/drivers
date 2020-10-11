@@ -76,7 +76,8 @@ func (d *Device) ResponseIPD(timeout int, buf []byte) (int, error) {
 		case stIpdRead1, stIpdRead2, stIpdRead3, stIpdRead4:
 			//dbgPrintf("s:%d e:%d\r\n", start, end)
 			dbgPrintf(".")
-			size, err = d.at_spi_read(d.response[wp:])
+			//size, err = d.at_spi_read(d.response[wp:])
+			size, err = d.Read(d.response[wp:])
 			if err != nil {
 				retry++
 				if retry == 10 {

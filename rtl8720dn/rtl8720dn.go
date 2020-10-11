@@ -73,6 +73,32 @@ func (d *Device) Write(b []byte) (n int, err error) {
 	return d.at_spi_write(b)
 }
 
+func (d *Device) Read(b []byte) (int, error) {
+	if 0 == d.responseEnd {
+		length, err := d.at_spi_read(d.responseBuf)
+		if err != nil {
+			return 0, err
+		}
+		d.responseIdx = 0
+		d.responseEnd = length
+
+	}
+
+	length := d.responseEnd - d.responseIdx
+	if len(b) <= length {
+		length = len(b)
+	}
+	copy(b, d.responseBuf[d.responseIdx:d.responseIdx+length])
+
+	d.responseIdx += length
+	if d.responseIdx == d.responseEnd {
+		d.responseIdx = 0
+		d.responseEnd = 0
+	}
+
+	return length, nil
+}
+
 func (d *Device) Connected() bool {
 	_, err := d.Write([]byte("AT\r\n"))
 	if err != nil {

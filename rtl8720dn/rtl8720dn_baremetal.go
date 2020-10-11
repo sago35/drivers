@@ -20,6 +20,10 @@ type Device struct {
 	// command responses that come back from the ESP8266/ESP32
 	response []byte
 
+	responseBuf []byte
+	responseIdx int
+	responseEnd int
+
 	// for go test
 	header string
 }
@@ -37,7 +41,8 @@ func New(bus machine.SPI, chipPu, existData, syncPin, csPin, uartRxPin machine.P
 		csPin:     csPin,
 		uartRxPin: uartRxPin,
 
-		response: make([]byte, 2048),
+		response:    make([]byte, 2048),
+		responseBuf: make([]byte, 2048),
 	}
 }
 

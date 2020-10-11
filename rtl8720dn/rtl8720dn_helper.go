@@ -12,6 +12,10 @@ type Device struct {
 	response  []byte
 	existData Pin
 
+	responseBuf []byte
+	responseIdx int
+	responseEnd int
+
 	// for tests
 	input          []string
 	inputCnt       int
@@ -23,8 +27,9 @@ type Device struct {
 
 func NewDevice(debug bool) *Device {
 	return &Device{
-		response: make([]byte, 2048),
-		debug:    debug,
+		response:    make([]byte, 2048),
+		responseBuf: make([]byte, 2048),
+		debug:       debug,
 	}
 }
 
