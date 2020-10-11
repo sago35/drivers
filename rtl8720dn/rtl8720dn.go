@@ -107,16 +107,16 @@ func (d *Device) GetHostByName(hostname string) (IPAddress, error) {
 
 	r, err := d.Response(30000, 0)
 	if err != nil {
-		return IPAddress(0), err
+		return IPAddress(""), err
 	}
 
 	if !strings.HasPrefix(string(r), `+CIPDOMAIN:"`) {
-		return IPAddress(0), err
+		return IPAddress(""), err
 	}
 
 	idx := strings.Index(string(r[12:]), `"`)
 	if idx < 0 {
-		return IPAddress(0), fmt.Errorf("err1")
+		return IPAddress(""), fmt.Errorf("err1")
 	}
 
 	ip := string(r[12 : 12+idx])
